@@ -1,0 +1,125 @@
+"""
+Módulo para criação de objetos Pymatgen e geração de features composicionais.
+Baseado no protocolo de Son Gyo Jung et al. e adaptado para previsão de 
+Entalpia de Formação (hform) usando apenas descritores composicionais.
+"""
+
+import os
+import pandas as pd
+import joblib
+import pathlib
+from pymatgen.core import Composition
+from matminer.featurizers.conversions import CompositionToOxidComposition
+from matminer.featurizers.composition import ElementProperty, Stoichiometry, ValenceOrbital
+
+class MaterialFeaturizer():
+    def __init__(self, df):
+        self.df = df
+        self.cur_dir = pathlib.Path().resolve()
+
+    def formula2composition(self, formula_col='formula'):
+        """Converte a fórmula química para o objeto Composition do Pymatgen."""
+        print("Convertendo fórmulas para objetos Pymatgen Composition...")
+        self.df['composition'] = self.df[formula_col].apply(lambda x: Composition(x))
+        return self.df
+
+    def generate_compositional_features(self):
+        """Gera os descritores composicionais citados no artigo."""
+        print("Gerando descritores composicionais...")
+        
+        ep_magpie = ElementProperty.from_preset("magpie")
+        ep_deml = ElementProperty.from_preset("deml") # preset que calcula propriedades focadas em energias de ionização e afinidade eletrônica
+        ep_matminer = ElementProperty.from_preset("matminer")
+        stoich = Stoichiometry()
+        val_orbital = ValenceOrbital() # calcula descritores focados na física dos orbitais atômicos de valência
+
+        self.df = ep_magpie.featurize_dataframe(self.df, 'composition', ignore_errors=True)
+        self.df = ep_deml.featurize_dataframe(self.df, 'composition', ignore_errors=True)
+        self.df = ep_matminer.featurize_dataframe(self.df, 'composition', ignore_errors=True)
+        self.df = stoich.featurize_dataframe(self.df, 'composition', ignore_errors=True)
+        self.df = val_orbital.featurize_dataframe(self.df, 'composition', ignore_errors=True)
+        
+        return self.df
+
+    def report(self):
+        """Gera um relatório sobre as features geradas."""
+        print("\n" + "="*60)
+        print(" RELATÓRIO DE GERAÇÃO DE FEATURES COMPOSICIONAIS ")
+        print("="*60)
+        
+        num_materiais = len(self.df)
+        
+        # Ignoramos as colunas bases do dataframe para contar apenas as novas features
+        colunas_base = ['formula', 'hform', 'composition', 'oxidation_composition']
+        features_geradas = [col for col in self.df.columns if col not in colunas_base]
+        
+        print(f"Total de materiais (linhas): {num_materiais}")
+        print(f"Total de features extraídas (colunas numéricas): {len(features_geradas)}\n")
+        
+        # Categorizando as features pelo nome
+        magpie = [f for f in features_geradas if f.startswith('MagpieData')]
+        deml = [f for f in features_geradas if f.startswith('DemlData')]
+        pymatgen_feat = [f for f in features_geradas if f.startswith('PymatgenData')]
+        normas = [f for f in features_geradas if 'norm' in f] 
+        valence = [f for f in features_geradas if 'valence' in f]
+        outras = [f for f in features_geradas if f not in (magpie + deml + pymatgen_feat + normas + valence)]
+        
+        print(" --- Detalhamento por Origem/Categoria ---")
+        print(f" 1. MagpieData   : {len(magpie):>3} features (Estatísticas de propriedades diversas)")
+        print(f" 2. DemlData     : {len(deml):>3} features (Propriedades térmicas, iônicas e de fusão)")
+        print(f" 3. PymatgenData : {len(pymatgen_feat):>3} features (Propriedades atômicas da tabela periódica)")
+        print(f" 4. Estequiometria: {len(normas):>3} features (Balanceamento da proporção química, L-norms)")
+        print(f" 5. Valência      : {len(valence):>3} features (Elétrons em camadas s, p, d, f)")
+        if outras:
+            print(f" 6. Outras       : {len(outras):>3} features")
+            
+        print("\n --- Amostra dos Nomes das Features Geradas ---")
+        for feat in (features_geradas[:3] + features_geradas[-3:]):
+            print(f" - {feat}")
+            
+        print("="*60 + "\n")
+
+    def save(self, name, csv=True):
+        """Salva os dados de forma segura, criando a pasta se ela não existir."""
+        caminho_completo_pkl = os.path.join(self.cur_dir, str(name) + '.pkl')
+        os.makedirs(os.path.dirname(caminho_completo_pkl), exist_ok=True)
+        
+        joblib.dump(self.df, caminho_completo_pkl)
+        print('Dados salvos com sucesso em:', caminho_completo_pkl)
+
+        if csv:
+            caminho_completo_csv = os.path.join(self.cur_dir, str(name) + '.csv')
+            self.df.to_csv(caminho_completo_csv, index=False)
+            print('Arquivo legível CSV salvo em:', caminho_completo_csv)
+
+
+# WORKFLOW PRINCIPAL
+if __name__ == "__main__":
+    import sys
+    
+    # Define caminhos absolutos se quiser, mas assumimos execução dentro de /home/maria_alice/TCC
+    # 1. Carregar os dados limpos do C2DB (que já contêm 'formula' e 'hform')
+    try:
+        df_c2db = pd.read_csv('data/c2db_limpo.csv')
+    except FileNotFoundError:
+        print("ERRO: O arquivo 'data/c2db_limpo.csv' não foi encontrado.")
+        print("Lembre-se de rodar este script de dentro da pasta TCC: cd /home/maria_alice/TCC")
+        sys.exit(1)
+        
+    df_alvo = df_c2db[['formula', 'hform']].copy()
+    
+    # 2. Instanciar a classe
+    mat_obj = MaterialFeaturizer(df_alvo)
+    
+    # 3. Converter strings para objetos do Pymatgen
+    mat_obj.formula2composition(formula_col='formula')
+    
+    # 4. Gerar os vetores de características baseados APENAS na composição
+    mat_obj.generate_compositional_features()
+    
+    mat_obj.report()
+    
+    # 6. Remover a coluna 'composition' (objeto complexo não serializável em CSV)
+    mat_obj.df = mat_obj.df.drop(columns=['composition'])
+    
+    mat_obj.save('data/c2db_featurizado_artigo', csv=True)

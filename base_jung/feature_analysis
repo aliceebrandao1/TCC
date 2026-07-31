@@ -1,0 +1,112 @@
+"""
+Módulo de Análise e Seleção de Features (Feature Analysis).
+Adaptado de Son Gyo Jung et al. focado em prever variáveis contínuas (Regressão de hform).
+"""
+
+import os
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.feature_selection import SelectKBest, f_regression
+from sklearn.feature_selection import mutual_info_regression
+
+class FeatureAnalyzer():
+    def __init__(self, df, target, path_to_save):
+        self.df = df
+        self.target = target
+        self.path_to_save = path_to_save
+        self.features = [col for col in self.df.columns if col not in [self.target, 'formula']]
+        
+        print(f"Alvo da análise: {self.target}")
+        print(f"Número inicial de features: {len(self.features)}")
+        
+        os.makedirs(self.path_to_save, exist_ok=True)
+
+    def remove_constant_features(self):
+        print("\n--- Limpando features constantes ---")
+        X = self.df[self.features].fillna(0)
+        variance_threshold = VarianceThreshold(threshold=0.0)
+        variance_threshold.fit(X)
+        
+        features_mantidas = X.columns[variance_threshold.get_support()].tolist()
+        features_removidas = [f for f in self.features if f not in features_mantidas]
+        
+        print(f"Features removidas (sem variação): {len(features_removidas)}")
+        self.features = features_mantidas
+        print(f"Features restantes úteis: {len(self.features)}")
+        
+        return self.features
+
+    def anova_f_test(self, save_csv=True):
+        print("\n--- Executando F-Test (Correlação Linear) ---")
+        X = self.df[self.features].fillna(0)
+        y = self.df[self.target].fillna(0)
+        
+        sel_f = SelectKBest(f_regression, k='all')
+        sel_f.fit(X, y)
+        
+        df_stat = pd.DataFrame({'feature': self.features, 'f_score': sel_f.scores_})
+        df_stat = df_stat.dropna().sort_values(by='f_score', ascending=False)
+        
+        # Escalonar resultados (0 a 1) para facilitar comparação, conforme o artigo
+        scaler = MinMaxScaler()
+        df_stat['f_score_scaled'] = scaler.fit_transform(df_stat[['f_score']])
+        
+        if save_csv:
+            caminho = os.path.join(self.path_to_save, f'f_test_result_{self.target}.csv')
+            df_stat.to_csv(caminho, index=False)
+            print(f"Resultado salvo em: {caminho}")
+            
+        return df_stat
+
+    def mutual_information(self, save_csv=True):
+        print("\n---Executando Mutual Information---")
+
+        X = self.df[self.features].fillna(0)
+        y = self.df[self.target].fillna(0)
+        
+        sel_mi = SelectKBest(mutual_info_regression, k='all')
+        sel_mi.fit(X, y)
+        
+        df_stat = pd.DataFrame({'feature': self.features, 'mi_score': sel_mi.scores_})
+        df_stat = df_stat.dropna().sort_values(by='mi_score', ascending=False)
+        
+        # Escalonar resultados (0 a 1)
+        scaler = MinMaxScaler()
+        df_stat['mi_score_scaled'] = scaler.fit_transform(df_stat[['mi_score']])
+        
+        if save_csv:
+            caminho = os.path.join(self.path_to_save, f'mutual_info_result_{self.target}.csv')
+            df_stat.to_csv(caminho, index=False)
+            print(f"Resultado salvo em: {caminho}")
+            
+        return df_stat
+
+
+# WORKFLOW PRINCIPAL
+if __name__ == "__main__":
+    import sys
+    
+    try:
+        df_featurizado = pd.read_csv('data/c2db_featurizado_artigo.csv')
+    except FileNotFoundError:
+        print("ERRO: 'data/c2db_featurizado_artigo.csv' não encontrado.")
+        print("Lembre-se de rodar este script de dentro da pasta TCC: cd /home/maria_alice/TCC")
+        sys.exit(1)
+    
+    analyzer = FeatureAnalyzer(
+        df=df_featurizado, 
+        target='hform', 
+        path_to_save='results/feature_analysis'
+    )
+    
+    analyzer.remove_constant_features()
+    
+    df_f_test = analyzer.anova_f_test()
+    print("\n Top 5 Features (Relação Linear - F-Test):")
+    print(df_f_test[['feature', 'f_score_scaled']].head())
+    
+    df_mi = analyzer.mutual_information()
+    print("\n Top 5 Features (Padrões Complexos - Mutual Information):")
+    print(df_mi[['feature', 'mi_score_scaled']].head())

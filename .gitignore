@@ -1,0 +1,9 @@
+c2db-2022-11-30.db
+c2db_extraido.csv
+c2db_limpo.csv
+RandomForest_best.pkl
+Ridge_best.pkl
+scaler.pkl
+c2db_featurizado_artigo.csv
+c2db_featurizado_artigo.pkl
+c2db_featurizado.csv

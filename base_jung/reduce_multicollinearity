@@ -1,0 +1,106 @@
+"""
+Módulo para redução de Multicolinearidade em 2 Etapas e Ranqueamento
+Baseado no protocolo completo de Son Gyo Jung et al.
+1. Filtro de Pearson
+2. Clusterização Hierárquica (Spearman + Ward Linkage)
+3. Ranqueamento (Mutual Information)
+"""
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import spearmanr
+from scipy.cluster import hierarchy
+from collections import defaultdict
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.feature_selection import mutual_info_regression
+
+def main():
+    print(" REDUÇÃO DE MULTICOLINEARIDADE E RANQUEAMENTO")
+    
+    try:
+        df = pd.read_csv('data/c2db_featurizado_artigo.csv')
+    except FileNotFoundError:
+        print("Arquivo não encontrado. Execute da pasta TCC.")
+        return
+        
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+    print(f" Features iniciais extraídas do Matminer: {len(features)}")
+    
+    X = df[features].fillna(0)
+    vt = VarianceThreshold(threshold=0.0)
+    vt.fit(X)
+    features_v1 = X.columns[vt.get_support()].tolist()
+    print(f" Features após remover constantes (Variance Threshold): {len(features_v1)}")
+    
+    # ETAPA 1: Filtro de Correlação de Pearson
+    threshold_pearson = 0.85
+    corr_matrix = df[features_v1].corr().abs()
+    
+    col_corr = set()
+    for i in range(len(corr_matrix.columns)):
+        for j in range(i):
+            if corr_matrix.iloc[i, j] > threshold_pearson:
+                col_corr.add(corr_matrix.columns[i])
+                
+    features_v2 = [f for f in features_v1 if f not in col_corr]
+    print(f" Features após Filtro de Pearson (Correlação > {threshold_pearson} removida): {len(features_v2)}")
+    
+    
+    # ETAPA 2: Clusterização Hierárquica (Spearman's R)
+    print("\nCalculando Clusterização Hierárquica (Spearman + Ward's linkage)...")
+    
+    corr_spearman = spearmanr(df[features_v2].fillna(0)).correlation
+    corr_spearman[np.isnan(corr_spearman)] = 0
+    corr_linkage = hierarchy.ward(corr_spearman)
+    
+    os.makedirs('results/figures', exist_ok=True)
+    plt.figure(figsize=(15, 8))
+    hierarchy.dendrogram(corr_linkage, labels=features_v2, orientation='top', leaf_rotation=90, leaf_font_size=8)
+    plt.title("Dendrograma de Features (Distância de Ward)")
+    plt.ylabel("Distância")
+    plt.tight_layout()
+    plt.savefig('results/figures/dendrograma_features.png', dpi=300)
+    plt.close()
+    
+    threshold_linkage = 1.5 
+    cluster_ids = hierarchy.fcluster(corr_linkage, t=threshold_linkage, criterion='distance')
+    
+    cluster_id_to_feature_ids = defaultdict(list)
+    for idx, cluster_id in enumerate(cluster_ids):
+        cluster_id_to_feature_ids[cluster_id].append(idx)
+        
+    selected_features_indices = [value[0] for value in cluster_id_to_feature_ids.values()]
+    features_v3 = [features_v2[i] for i in selected_features_indices]
+    print(f" Features finais após Hierarchical Clustering (Threshold {threshold_linkage}): {len(features_v3)}")
+    
+    colunas_finais = ['formula', target] + features_v3
+    df_final = df[colunas_finais]
+    df_final.to_csv('data/c2db_features_selecionadas.csv', index=False)
+    
+    print(f"\n Dataset final salvo em: data/c2db_features_selecionadas.csv")
+    
+    # ETAPA 3: Ranqueamento Final (Mutual Information)
+    print("\n RANQUEAMENTO DAS FEATURES MAIS IMPORTANTES ")
+    print("\n Avaliando dependência com a Entalpia (Isso pode levar alguns segundos)...")
+    
+    X_final = df_final[features_v3].fillna(0)
+    y_final = df_final[target].fillna(0)
+    
+    mi_scores = mutual_info_regression(X_final, y_final)
+    df_ranking = pd.DataFrame({'Feature': features_v3, 'Score_MI': mi_scores})
+    df_ranking = df_ranking.sort_values(by='Score_MI', ascending=False).reset_index(drop=True)
+    
+    os.makedirs('results/feature_analysis', exist_ok=True)
+    caminho_ranking = 'results/feature_analysis/ranking_features_finais.csv'
+    df_ranking.to_csv(caminho_ranking, index=False)
+    
+    print("\n Top 10 Features Mais Importantes (Pós-Multicolinearidade):")
+    print(df_ranking.head(10).to_string(index=True))
+    
+    print(f"\n Ranking completo salvo em: {caminho_ranking}")
+
+if __name__ == "__main__":
+    main()
