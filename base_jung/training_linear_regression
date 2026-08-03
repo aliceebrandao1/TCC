@@ -1,0 +1,122 @@
+"""
+Treinamento do Modelo Baseline: Regressão Linear
+Previsão da Entalpia de Formação (hform) de materiais 2D (C2DB)
+"""
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import joblib
+
+
+def main():
+    print("="*60)
+    print(" TREINAMENTO: REGRESSÃO LINEAR (BASELINE)")
+    print("="*60)
+
+    try:
+        df = pd.read_csv('data/c2db_features_selecionadas.csv')
+    except FileNotFoundError:
+        print("ERRO: 'data/c2db_features_selecionadas.csv' não encontrado.")
+        print("Rode primeiro o script de redução de multicolinearidade.")
+        return
+
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+
+    print(f" Materiais carregados: {len(df)}")
+    print(f"  Features utilizadas: {len(features)}")
+
+    X = df[features].fillna(0)
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42
+    )
+
+    print(f"\n Conjunto de Treino: {len(X_train)} materiais (80%)")
+    print(f" Conjunto de Teste:  {len(X_test)} materiais (20%)")
+
+    # Normalização (StandardScaler)
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)  
+    X_test_scaled = scaler.transform(X_test)         
+
+    modelo = LinearRegression()
+    modelo.fit(X_train_scaled, y_train)
+
+    print(" Modelo treinado com sucesso!")
+
+    # Validação Cruzada (5-Fold)
+    # Divide o treino em 5 partes. Treina em 4, testa em 1, repete 5 vezes
+    scores_cv = cross_val_score(modelo, X_train_scaled, y_train, cv=5, scoring='r2')
+
+    print(f"\n--- Validação Cruzada (5-Fold) ---")
+    print(f"R² por fold: {np.round(scores_cv, 4)}")
+    print(f"R² médio:    {scores_cv.mean():.4f} ± {scores_cv.std():.4f}")
+
+    # Avaliação no Conjunto de Teste
+    y_pred = modelo.predict(X_test_scaled)
+
+    mae  = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    r2   = r2_score(y_test, y_pred)
+
+    print(f"\n--- Métricas no Conjunto de Teste ---")
+    print(f"R² (Coeficiente de Determinação): {r2:.4f}")
+    print(f"MAE (Erro Absoluto Médio):        {mae:.4f} eV/átomo")
+    print(f"RMSE (Raiz do Erro Quadrático):   {rmse:.4f} eV/átomo")
+
+    os.makedirs('results/figures', exist_ok=True)
+
+    #  Gráfico: Valor Real vs Valor Previsto
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    axes[0].scatter(y_test, y_pred, alpha=0.4, s=15, color='#5B86E5', edgecolors='white', linewidth=0.3)
+    lim_min = min(y_test.min(), y_pred.min())
+    lim_max = max(y_test.max(), y_pred.max())
+    axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
+    axes[0].set_xlabel('hform Real (eV/átomo)')
+    axes[0].set_ylabel('hform Previsto (eV/átomo)')
+    axes[0].set_title(f'Regressão Linear — R² = {r2:.4f}')
+    axes[0].legend()
+
+    # 7b. Gráfico: Distribuição dos Resíduos (Erros)
+    residuos = y_test - y_pred
+    axes[1].hist(residuos, bins=60, color='#36D1DC', edgecolor='white', alpha=0.85)
+    axes[1].axvline(0, color='red', linestyle='--', linewidth=1.5)
+    axes[1].set_xlabel('Resíduo (Real - Previsto) (eV/átomo)')
+    axes[1].set_ylabel('Frequência')
+    axes[1].set_title(f'Distribuição dos Resíduos — MAE = {mae:.4f}')
+
+    plt.tight_layout()
+    plt.savefig('results/figures/regressao_linear_resultados.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("\n  Gráficos salvos em: results/figures/regressao_linear_resultados.png")
+
+    # Salvar o Modelo Treinado
+    os.makedirs('models', exist_ok=True)
+    joblib.dump(modelo, 'models/regressao_linear.pkl')
+    joblib.dump(scaler, 'models/scaler_regressao_linear.pkl')
+    print(" Modelo salvo em: models/regressao_linear.pkl")
+
+    print("\n" + "="*60)
+    print(" RESUMO — REGRESSÃO LINEAR (BASELINE)")
+    print("="*60)
+    print(f"  Materiais no treino:  {len(X_train)}")
+    print(f"  Materiais no teste:   {len(X_test)}")
+    print(f"  Features utilizadas:  {len(features)}")
+    print(f"  R² (Teste):           {r2:.4f}")
+    print(f"  MAE (Teste):          {mae:.4f} eV/átomo")
+    print(f"  RMSE (Teste):         {rmse:.4f} eV/átomo")
+    print(f"  R² CV (5-Fold):       {scores_cv.mean():.4f} ± {scores_cv.std():.4f}")
+    print("="*60)
+
+
+if __name__ == "__main__":
+    main()

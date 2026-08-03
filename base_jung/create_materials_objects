@@ -42,7 +42,6 @@ class MaterialFeaturizer():
         return self.df
 
     def report(self):
-        """Gera um relatório sobre as features geradas."""
         print("\n" + "="*60)
         print(" RELATÓRIO DE GERAÇÃO DE FEATURES COMPOSICIONAIS ")
         print("="*60)
@@ -108,13 +107,10 @@ if __name__ == "__main__":
         
     df_alvo = df_c2db[['formula', 'hform']].copy()
     
-    # 2. Instanciar a classe
     mat_obj = MaterialFeaturizer(df_alvo)
     
-    # 3. Converter strings para objetos do Pymatgen
     mat_obj.formula2composition(formula_col='formula')
     
-    # 4. Gerar os vetores de características baseados APENAS na composição
     mat_obj.generate_compositional_features()
     
     mat_obj.report()

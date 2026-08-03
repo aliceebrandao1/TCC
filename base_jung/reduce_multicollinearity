@@ -84,7 +84,7 @@ def main():
     
     # ETAPA 3: Ranqueamento Final (Mutual Information)
     print("\n RANQUEAMENTO DAS FEATURES MAIS IMPORTANTES ")
-    print("\n Avaliando dependência com a Entalpia (Isso pode levar alguns segundos)...")
+    print("\n Avaliando dependência com a Entalpia")
     
     X_final = df_final[features_v3].fillna(0)
     y_final = df_final[target].fillna(0)

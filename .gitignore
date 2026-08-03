@@ -7,3 +7,5 @@ scaler.pkl
 c2db_featurizado_artigo.csv
 c2db_featurizado_artigo.pkl
 c2db_featurizado.csv
+regressao_linear.pkl
+scaler_regressao_linear.pkl
