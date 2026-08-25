@@ -15,9 +15,7 @@ import joblib
 
 
 def main():
-    print("="*60)
     print(" TREINAMENTO: REGRESSÃO LINEAR (BASELINE)")
-    print("="*60)
 
     try:
         df = pd.read_csv('data/c2db_features_selecionadas.csv')
@@ -105,9 +103,7 @@ def main():
     joblib.dump(scaler, 'models/scaler_regressao_linear.pkl')
     print(" Modelo salvo em: models/regressao_linear.pkl")
 
-    print("\n" + "="*60)
-    print(" RESUMO — REGRESSÃO LINEAR (BASELINE)")
-    print("="*60)
+    print("\n RESUMO — REGRESSÃO LINEAR (BASELINE)")
     print(f"  Materiais no treino:  {len(X_train)}")
     print(f"  Materiais no teste:   {len(X_test)}")
     print(f"  Features utilizadas:  {len(features)}")
@@ -115,7 +111,6 @@ def main():
     print(f"  MAE (Teste):          {mae:.4f} eV/átomo")
     print(f"  RMSE (Teste):         {rmse:.4f} eV/átomo")
     print(f"  R² CV (5-Fold):       {scores_cv.mean():.4f} ± {scores_cv.std():.4f}")
-    print("="*60)
 
 
 if __name__ == "__main__":

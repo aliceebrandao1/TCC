@@ -4,12 +4,13 @@ Baseado no protocolo de Son Gyo Jung et al. e adaptado para previsão de
 Entalpia de Formação (hform) usando apenas descritores composicionais.
 """
 
+import sys
 import os
 import pandas as pd
 import joblib
 import pathlib
 from pymatgen.core import Composition
-from matminer.featurizers.conversions import CompositionToOxidComposition
+#from matminer.featurizers.conversions import CompositionToOxidComposition
 from matminer.featurizers.composition import ElementProperty, Stoichiometry, ValenceOrbital
 
 class MaterialFeaturizer():
@@ -49,7 +50,7 @@ class MaterialFeaturizer():
         num_materiais = len(self.df)
         
         # Ignoramos as colunas bases do dataframe para contar apenas as novas features
-        colunas_base = ['formula', 'hform', 'composition', 'oxidation_composition']
+        colunas_base = ['formula', 'hform', 'composition']
         features_geradas = [col for col in self.df.columns if col not in colunas_base]
         
         print(f"Total de materiais (linhas): {num_materiais}")
@@ -78,8 +79,24 @@ class MaterialFeaturizer():
             
         print("="*60 + "\n")
 
+        # VERIFICAÇÃO DE SEGURANÇA (VALORES VAZIOS) 
+        print(" Verificação de Segurança")
+        colunas_com_nan = self.df.columns[self.df.isna().any()].tolist()
+        if colunas_com_nan:
+            print(f" ALERTA: Foram encontrados valores vazios (NaN) em {len(colunas_com_nan)} colunas!")
+            print(" Materiais com falha na extração:")
+            linhas_com_erro = self.df[self.df.isna().any(axis=1)]['formula'].tolist()
+            print(f" {linhas_com_erro}")
+        else:
+            print(" SUCESSO: Nenhum valor vazio (NaN) gerado. Dados consistentes.")
+    
     def save(self, name, csv=True):
         """Salva os dados de forma segura, criando a pasta se ela não existir."""
+
+        # Garante que todas as features extraídas são números (float ou int)
+        features_para_verificar = self.df.drop(columns=['formula', 'hform', 'composition'], errors='ignore')
+        assert all(features_para_verificar.dtypes != 'object'), "ERRO CRÍTICO: Alguma feature foi gerada como texto (string) ao invés de número!"
+
         caminho_completo_pkl = os.path.join(self.cur_dir, str(name) + '.pkl')
         os.makedirs(os.path.dirname(caminho_completo_pkl), exist_ok=True)
         
@@ -94,28 +111,47 @@ class MaterialFeaturizer():
 
 # WORKFLOW PRINCIPAL
 if __name__ == "__main__":
-    import sys
+   
+    # ETAPA 1: VALIDAÇÃO FÍSICA (TESTE DE MESA)
+
+    print("\n" + "="*60)
+    print(" INICIANDO ETAPA 1: VALIDAÇÃO DA FÍSICA E EXTRAÇÃO")
+    print("="*60)
     
-    # Define caminhos absolutos se quiser, mas assumimos execução dentro de /home/maria_alice/TCC
-    # 1. Carregar os dados limpos do C2DB (que já contêm 'formula' e 'hform')
+    dados_teste = {
+        'formula': ['MoS2', 'C'], 
+        'hform': [-1.05, 0.0]     
+    }
+    df_amostra = pd.DataFrame(dados_teste)
+    mat_teste = MaterialFeaturizer(df_amostra)
+    mat_teste.formula2composition(formula_col='formula')
+    mat_teste.generate_compositional_features()
+    
+    print("\n Validação Física do Carbono ")
+    carbono_features = mat_teste.df[mat_teste.df['formula'] == 'C']
+    colunas_valencia = [col for col in carbono_features.columns if 'valence' in col]
+    print(carbono_features[['formula'] + colunas_valencia].T)
+    
+    mat_teste.df = mat_teste.df.drop(columns=['composition'])
+    mat_teste.save('data/teste_featurizado', csv=True)
+    
+    
+    # ETAPA 2: PROCESSAMENTO COMPLETO DA BASE C2DB
+    print("\n" + "="*60)
+    print(" INICIANDO ETAPA 2: PROCESSAMENTO DOS DADOS REAIS")
+    print("="*60)
+    
     try:
         df_c2db = pd.read_csv('data/c2db_limpo.csv')
     except FileNotFoundError:
-        print("ERRO: O arquivo 'data/c2db_limpo.csv' não foi encontrado.")
-        print("Lembre-se de rodar este script de dentro da pasta TCC: cd /home/maria_alice/TCC")
+        print("ERRO CRÍTICO: O arquivo 'data/c2db_limpo.csv' não foi encontrado.")
         sys.exit(1)
         
     df_alvo = df_c2db[['formula', 'hform']].copy()
+    mat_principal = MaterialFeaturizer(df_alvo)
+    mat_principal.formula2composition(formula_col='formula')
+    mat_principal.generate_compositional_features()
+    mat_principal.report()
     
-    mat_obj = MaterialFeaturizer(df_alvo)
-    
-    mat_obj.formula2composition(formula_col='formula')
-    
-    mat_obj.generate_compositional_features()
-    
-    mat_obj.report()
-    
-    # 6. Remover a coluna 'composition' (objeto complexo não serializável em CSV)
-    mat_obj.df = mat_obj.df.drop(columns=['composition'])
-    
-    mat_obj.save('data/c2db_featurizado_artigo', csv=True)
+    mat_principal.df = mat_principal.df.drop(columns=['composition'])
+    mat_principal.save('data/c2db_featurizado_artigo', csv=True)
