@@ -28,7 +28,7 @@ from sklearn.preprocessing import MinMaxScaler
 def main():
     df = pd.read_csv('data/c2db_featurizado_artigo.csv')
     target = 'hform'
-    features = [col for col in df.columns if col not in [target, 'formula']]
+    features = [col for col in df.columns if col not in [target, 'formula']] # percorre o cabeçalho de todas as colunas da matriz e salva os nomes na lista features. se o nome da coluna for a variável alvo (hform) ou a variável de texto estequiométrico (formula), essa coluna é bloqueada e não entra na lista
     print(f"Features iniciais extraídas do Matminer: {len(features)}")
 
     # ETAPA 1: Remoção de Features Constantes (VarianceThreshold)
@@ -94,7 +94,7 @@ def main():
     df_limpo.to_csv('data/c2db_features_selecionadas.csv', index=False)
     print(f"Dataset limpo salvo em: data/c2db_features_selecionadas.csv")
 
-    # ETAPA 4: Análise F-Test (Correlação Linear) — Pós-Multicolinearidade
+    # ETAPA 4: Análise F-Test (Correlação Linear)
     print("\n--- ETAPA 4: F-Test (Correlação Linear) ---")
     X_limpo = df_limpo[features_v3].fillna(0)
     y = df_limpo[target].fillna(0)
@@ -115,7 +115,7 @@ def main():
     print("\nTop 10 Features (Relação Linear - F-Test):")
     print(df_f_test[['feature', 'f_score_scaled']].head(10).to_string(index=True))
 
-    # ETAPA 5: Ranqueamento Final (Mutual Information Puro)
+    # ETAPA 5: Ranqueamento Final 
     print("\n--- ETAPA 5: Ranqueamento Final (Mutual Information) ---")
     print("(Calculando a redução de entropia física... isso pode demorar alguns segundos)")
 
@@ -136,7 +136,7 @@ def main():
     os.makedirs('results/feature_analysis', exist_ok=True)
     df_ranking.to_csv('results/feature_analysis/ranking_features_finais.csv', index=False)
 
-    print("\nTop 10 Features Mais Importantes (Sem MinMaxScaler):")
+    print("\nTop 10 Features Mais Importantes:")
     print(df_ranking.head(10).to_string(index=True))
     print("\nRanking completo salvo em: results/feature_analysis/ranking_features_finais.csv")
 
@@ -155,3 +155,68 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+print("\n" + "="*50)
+print(" INICIANDO CALIBRAÇÃO ESTATÍSTICA DO PIPELINE ")
+print("="*50)
+
+# 1. CRIANDO O SINAL SINTÉTICO PERFEITO
+dados_teste = {
+    'hform_alvo': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    'f_constante': [5, 5, 5, 5, 5, 5, 5, 5, 5, 5],             # Variância Zero
+    'f_linear': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],     # Correlação Perfeita (y = 10x)
+    'f_gemea': [20, 40, 60, 80, 100, 120, 140, 160, 180, 200], # Redundância Perfeita (Dobro da linear)
+    'f_nao_linear': [25, 16, 9, 4, 1, 0, 1, 4, 9, 16],    # Curva Parabolica (y = (x-6)^2)
+    'f_ruido': [42, 7, 99, 13, 50, 2, 88, 34, 76, 19]          # Aleatório
+}
+df_teste = pd.DataFrame(dados_teste)
+alvo = 'hform_alvo'
+features = [col for col in df_teste.columns if col != alvo]
+
+print("\n[PASSO 1] Tabela Original Injetada:")
+print(df_teste.head())
+
+# 2. TESTANDO VARIANCE THRESHOLD
+vt = VarianceThreshold(threshold=0.0)
+vt.fit(df_teste[features])
+features_v1 = df_teste[features].columns[vt.get_support()].tolist()
+print("\n[PASSO 2] Após VarianceThreshold:")
+print(f"Sobreviveram: {features_v1}")
+print("-> SUCESSO: 'f_constante' foi aniquilada." if 'f_constante' not in features_v1 else "FALHA")
+
+# 3. TESTANDO FILTRO DE PEARSON
+threshold_pearson = 0.85
+corr_matrix = df_teste[features_v1].corr().abs()
+col_corr = set()
+for i in range(len(corr_matrix.columns)):
+    for j in range(i):
+        if corr_matrix.iloc[i, j] > threshold_pearson:
+            col_corr.add(corr_matrix.columns[i])
+
+features_v2 = [f for f in features_v1 if f not in col_corr]
+print("\n[PASSO 3] Após Filtro de Pearson:")
+print(f"Sobreviveram: {features_v2}")
+print("-> SUCESSO: 'f_gemea' foi deletada por redundância." if 'f_gemea' not in features_v2 else "FALHA")
+
+# 4. TESTANDO F-TEST vs MUTUAL INFORMATION
+X_final = df_teste[features_v2]
+y_final = df_teste[alvo]
+
+# F-Test
+sel_f = SelectKBest(f_regression, k='all')
+sel_f.fit(X_final, y_final)
+df_f = pd.DataFrame({'feature': features_v2, 'f_score': sel_f.scores_}).sort_values(by='f_score', ascending=False)
+
+# Mutual Information
+sel_mi = SelectKBest(mutual_info_regression, k='all')
+sel_mi.fit(X_final, y_final)
+df_mi = pd.DataFrame({'feature': features_v2, 'mi_score': sel_mi.scores_}).sort_values(by='mi_score', ascending=False)
+
+print("\n[PASSO 4] Comprovação do Ranking:")
+print("\nRanking Linear (F-Test):")
+print(df_f.to_string(index=False))
+
+print("\nRanking da Teoria da Informação (MI):")
+print(df_mi.to_string(index=False))
