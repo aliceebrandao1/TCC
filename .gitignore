@@ -13,3 +13,5 @@ c2db_features_selecionadas.csv
 lista_features.csv
 teste_featurizado.csv
 teste_featurizado.pkl
+gradient_boosting.pkl
+scaler_gb.pkl

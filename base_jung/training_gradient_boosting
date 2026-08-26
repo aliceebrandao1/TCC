@@ -1,0 +1,139 @@
+"""
+Treinamento do Modelo Não-Linear: Gradient Boosting
+Previsão da Entalpia de Formação (hform) de materiais 2D (C2DB)
+"""
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import joblib
+
+def main():
+    print("\n" + "="*50)
+    print(" TREINAMENTO: GRADIENT BOOSTING REGRESSOR")
+    print("="*50)
+
+    try:
+        df = pd.read_csv('data/c2db_features_selecionadas.csv')
+    except FileNotFoundError:
+        print("ERRO: O arquivo 'c2db_features_selecionadas.csv' não foi encontrado.")
+        return
+
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+
+    X = df[features].fillna(0)
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+    # Normalização (Gradient Boosting não exige, mas mantém o padrão do pipeline)
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    print("Treinando o modelo (Isso pode levar alguns segundos)...")
+    
+    # Instanciando o Gradient Boosting com parâmetros iniciais robustos
+    modelo = GradientBoostingRegressor(
+        n_estimators=150,     # Número de árvores sequenciais
+        learning_rate=0.1,    # Taxa de aprendizado (passo da correção do erro)
+        max_depth=4,          # Profundidade máxima de cada árvore
+        random_state=42
+    )
+    
+    modelo.fit(X_train_scaled, y_train)
+    print("Modelo treinado com sucesso!")
+
+    # Validação Cruzada (5-Fold)
+    scores_cv = cross_val_score(modelo, X_train_scaled, y_train, cv=5, scoring='r2')
+
+    # Previsões no Teste
+    y_pred = modelo.predict(X_test_scaled)
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    r2 = r2_score(y_test, y_pred)
+
+    print(f"\n--- Validação Cruzada (Treino) ---")
+    print(f"R² médio:     {scores_cv.mean():.4f} ± {scores_cv.std():.4f}")
+
+    print(f"\n--- Métricas Finais (Conjunto de Teste) ---")
+    print(f"R²:           {r2:.4f}")
+    print(f"MAE:          {mae:.4f} eV/átomo")
+    print(f"RMSE:         {rmse:.4f} eV/átomo")
+
+    # Gráficos de Avaliação
+    os.makedirs('results/figures', exist_ok=True)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    # Gráfico 1: Real vs Previsto
+    axes[0].scatter(y_test, y_pred, alpha=0.5, s=15, color='#ff7f50', edgecolors='white', linewidth=0.3)
+    lim_min = min(y_test.min(), y_pred.min())
+    lim_max = max(y_test.max(), y_pred.max())
+    axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
+    axes[0].set_xlabel('hform Real (eV/átomo)')
+    axes[0].set_ylabel('hform Previsto (eV/átomo)')
+    axes[0].set_title(f'Gradient Boosting — R² = {r2:.4f}')
+    axes[0].legend()
+
+    # Gráfico 2: Importância das Features (O diferencial dos modelos de árvore)
+    importancias = modelo.feature_importances_
+    df_imp = pd.DataFrame({'feature': features, 'importancia': importancias})
+    df_imp = df_imp.sort_values(by='importancia', ascending=True).tail(10) # Pegando o Top 10
+    
+    axes[1].barh(df_imp['feature'], df_imp['importancia'], color='#20b2aa')
+    axes[1].set_xlabel('Importância Relativa')
+    axes[1].set_title('Top 10 Features Mais Preditivas no Modelo')
+
+    plt.tight_layout()
+    plt.savefig('results/figures/gradient_boosting_resultados.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # Salvar o Modelo
+    os.makedirs('models', exist_ok=True)
+    joblib.dump(modelo, 'models/gradient_boosting.pkl')
+    joblib.dump(scaler, 'models/scaler_gb.pkl')
+
+if __name__ == "__main__":
+    main()
+
+
+print("\n" + "="*50)
+print(" INICIANDO CALIBRAÇÃO: GRADIENT BOOSTING ")
+print("="*50)
+
+# 1. Gerando o plano curvo perfeito (Sem ruído termodinâmico)
+np.random.seed(42)
+x1 = np.random.rand(200) * 10
+x2 = np.random.rand(200) * 10
+
+# A lei da física deste universo virtual: y = (x1)^2 + 5*(x2)
+y_perfeito = (x1**2) + (5 * x2)
+
+df_teste = pd.DataFrame({'f1': x1, 'f2': x2, 'hform': y_perfeito})
+X = df_teste[['f1', 'f2']]
+y = df_teste['hform']
+
+# 2. Executando o pipeline do GB
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+modelo = GradientBoostingRegressor(n_estimators=150, learning_rate=0.1, max_depth=4, random_state=42)
+modelo.fit(X_train_scaled, y_train)
+
+y_pred = modelo.predict(X_test_scaled)
+cv_scores = cross_val_score(modelo, X_train_scaled, y_train, cv=5, scoring='r2')
+
+# 3. Resultados
+print("\n--- Diagnóstico do Algoritmo de Árvore ---")
+print(f"R² Teste:       {r2_score(y_test, y_pred):.4f} (Esperado: > 0.98)")
+print(f"MAE Teste:      {mean_absolute_error(y_test, y_pred):.4f} (Esperado: Próximo de zero, mas não absoluto)")
+print(f"R² CV (5-Fold): {cv_scores.mean():.4f} (Esperado: > 0.98)")
