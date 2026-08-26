@@ -115,3 +115,32 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    print("\n--- INICIANDO CALIBRAÇÃO DO MODELO BASELINE ---")
+
+# 1. Gerando o plano determinístico
+np.random.seed(42)
+x1 = np.random.rand(100) * 10
+x2 = np.random.rand(100) * 5
+y_perfeito = 5 * x1 - 2 * x2 + 10
+
+df_teste = pd.DataFrame({'f1': x1, 'f2': x2, 'hform': y_perfeito})
+X = df_teste[['f1', 'f2']]
+y = df_teste['hform']
+
+# 2. Executando o SEU pipeline exato
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+modelo = LinearRegression()
+modelo.fit(X_train_scaled, y_train)
+y_pred = modelo.predict(X_test_scaled)
+cv_scores = cross_val_score(modelo, X_train_scaled, y_train, cv=5, scoring='r2')
+
+# 3. Resultados
+print(f"R² Teste:       {r2_score(y_test, y_pred):.4f} (Desejado: 1.0000)")
+print(f"MAE Teste:      {mean_absolute_error(y_test, y_pred):.4f} (Desejado: 0.0000)")
+print(f"R² CV (5-Fold): {cv_scores.mean():.4f} (Desejado: 1.0000)")
