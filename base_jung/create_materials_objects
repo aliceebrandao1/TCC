@@ -39,6 +39,8 @@ class MaterialFeaturizer():
         self.df = ep_matminer.featurize_dataframe(self.df, 'composition', ignore_errors=True)
         self.df = stoich.featurize_dataframe(self.df, 'composition', ignore_errors=True)
         self.df = val_orbital.featurize_dataframe(self.df, 'composition', ignore_errors=True)
+        colunas_para_remover = [col for col in self.df.columns if 'SpaceGroup' in col]
+        self.df = self.df.drop(columns=colunas_para_remover)
         
         return self.df
 
@@ -52,6 +54,7 @@ class MaterialFeaturizer():
         # Ignoramos as colunas bases do dataframe para contar apenas as novas features
         colunas_base = ['formula', 'hform', 'composition']
         features_geradas = [col for col in self.df.columns if col not in colunas_base]
+
         
         print(f"Total de materiais (linhas): {num_materiais}")
         print(f"Total de features extraídas (colunas numéricas): {len(features_geradas)}\n")
@@ -142,7 +145,7 @@ if __name__ == "__main__":
     print("="*60)
     
     try:
-        df_c2db = pd.read_csv('data/c2db_limpo.csv')
+        df_c2db = pd.read_csv('/home/maria_alice/TCC/data/c2db_limpo.csv')
     except FileNotFoundError:
         print("ERRO CRÍTICO: O arquivo 'data/c2db_limpo.csv' não foi encontrado.")
         sys.exit(1)
