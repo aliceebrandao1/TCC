@@ -1,0 +1,95 @@
+"""
+Treinamento do Modelo: Rede Neural Artificial (MLP)
+Previsão da Entalpia de Formação (hform) de materiais 2D (C2DB)
+"""
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import joblib
+
+def main():
+    print("\n" + "="*50)
+    print(" TREINAMENTO: REDE NEURAL ARTIFICIAL (MLP)")
+    print("="*50)
+
+    try:
+        df = pd.read_csv('data/c2db_features_selecionadas.csv')
+    except FileNotFoundError:
+        print("ERRO: O arquivo de dados não foi encontrado.")
+        return
+
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+
+    X = df[features].fillna(0)
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42
+    )
+
+    # A normalização é ABSOLUTAMENTE CRÍTICA para as Redes Neurais
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    print("Treinando a Rede Neural...")
+    
+    modelo = MLPRegressor(
+        hidden_layer_sizes=(100, 50),
+        activation='relu',
+        solver='adam',
+        max_iter=1000,
+        learning_rate_init=0.001,
+        random_state=42
+    )
+    
+    modelo.fit(X_train_scaled, y_train)
+    print("Rede Neural convergida com sucesso!")
+
+    y_pred = modelo.predict(X_test_scaled)
+    r2 = r2_score(y_test, y_pred)
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+
+    print(f"\n--- Métricas Finais (Conjunto de Teste) ---")
+    print(f"R²:           {r2:.4f}")
+    print(f"MAE:          {mae:.4f} eV/átomo")
+    print(f"RMSE:         {rmse:.4f} eV/átomo")
+
+    # Gráficos de Avaliação
+    os.makedirs('results/figures', exist_ok=True)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    # Gráfico 1: Real vs Previsto
+    axes[0].scatter(y_test, y_pred, alpha=0.5, s=15, color='#9467bd', edgecolors='white', linewidth=0.3)
+    lim_min = min(y_test.min(), y_pred.min())
+    lim_max = max(y_test.max(), y_pred.max())
+    axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
+    axes[0].set_xlabel('hform Real (eV/átomo)')
+    axes[0].set_ylabel('hform Previsto (eV/átomo)')
+    axes[0].set_title(f'Rede Neural — R² = {r2:.4f}')
+    axes[0].legend()
+
+    # Gráfico 2: Curva de Perda (Minimização de Erro)
+    axes[1].plot(modelo.loss_curve_, color='#d62728', linewidth=2)
+    axes[1].set_xlabel('Épocas (Iterações de Treinamento)')
+    axes[1].set_ylabel('Função de Custo (Loss)')
+    axes[1].set_title('Convergência do Erro da Rede Neural')
+
+    plt.tight_layout()
+    plt.savefig('results/figures/rede_neural_resultados.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    os.makedirs('models', exist_ok=True)
+    joblib.dump(modelo, 'models/rede_neural.pkl')
+    joblib.dump(scaler, 'models/scaler_rna.pkl')
+
+if __name__ == "__main__":
+    main()
