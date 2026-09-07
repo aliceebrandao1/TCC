@@ -15,3 +15,5 @@ teste_featurizado.csv
 teste_featurizado.pkl
 gradient_boosting.pkl
 scaler_gb.pkl
+random_forest.pkl
+scaler_rf.pkl
