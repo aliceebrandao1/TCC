@@ -1,142 +1,130 @@
 """
-Treinamento do Modelo Baseline: Regressão Linear
-Previsão da Entalpia de Formação (hform) de materiais 2D (C2DB)
+Treinamento e Validação: Regressão Linear (Baseline)
+Previsão da Entalpia de Formação de materiais 2D e Calibração Linear
 """
 
 import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import joblib
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import joblib
 
+def executar_pipeline_lr(X, y, nome_etapa, salvar_modelo=False):
+    """
+    Função universal que recebe uma matriz de features (X) e um alvo (y),
+    treina o modelo e retorna as métricas de avaliação.
+    """
+    print(f"\n" + "="*50)
+    print(f" EXECUTANDO: {nome_etapa.upper()}")
+    print("="*50)
 
-def main():
-    print(" TREINAMENTO: REGRESSÃO LINEAR (BASELINE)")
-
-    try:
-        df = pd.read_csv('data/c2db_features_selecionadas.csv')
-    except FileNotFoundError:
-        print("ERRO: 'data/c2db_features_selecionadas.csv' não encontrado.")
-        print("Rode primeiro o script de redução de multicolinearidade.")
-        return
-
-    target = 'hform'
-    features = [col for col in df.columns if col not in [target, 'formula']]
-
-    print(f" Materiais carregados: {len(df)}")
-    print(f"  Features utilizadas: {len(features)}")
-
-    X = df[features].fillna(0)
-    y = df[target]
+    print(f"Total de dados (linhas):  {len(X)}")
+    print(f"Total de features (cols): {X.shape[1]}\n")
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42
     )
-
-    print(f"\n Conjunto de Treino: {len(X_train)} materiais (80%)")
-    print(f" Conjunto de Teste:  {len(X_test)} materiais (20%)")
+    
+    print(f"Conjunto de Treino: {len(X_train)} materiais (80%)")
+    print(f"Conjunto de Teste:  {len(X_test)} materiais (20%)\n")
 
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)  
-    X_test_scaled = scaler.transform(X_test)         
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
 
+    print("Treinando o modelo linear (Baseline)...")
+    
     modelo = LinearRegression()
     modelo.fit(X_train_scaled, y_train)
+    print("Modelo treinado com sucesso!")
 
-    print(" Modelo treinado com sucesso!")
-
-    # Validação Cruzada (5-Fold)
-    # Divide o treino em 5 partes. Treina em 4, testa em 1, repete 5 vezes
-    scores_cv = cross_val_score(modelo, X_train_scaled, y_train, cv=5, scoring='r2')
-
-    print(f"\n--- Validação Cruzada (5-Fold) ---")
-    print(f"R² por fold: {np.round(scores_cv, 4)}")
-    print(f"R² médio:    {scores_cv.mean():.4f} ± {scores_cv.std():.4f}")
-
-    # Avaliação no Conjunto de Teste
     y_pred = modelo.predict(X_test_scaled)
-
-    mae  = mean_absolute_error(y_test, y_pred)
+    cv_scores = cross_val_score(modelo, X_train_scaled, y_train, cv=5, scoring='r2')
+    
+    r2 = r2_score(y_test, y_pred)
+    mae = mean_absolute_error(y_test, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    r2   = r2_score(y_test, y_pred)
 
-    print(f"\n--- Métricas no Conjunto de Teste ---")
-    print(f"R² (Coeficiente de Determinação): {r2:.4f}")
-    print(f"MAE (Erro Absoluto Médio):        {mae:.4f} eV/átomo")
-    print(f"RMSE (Raiz do Erro Quadrático):   {rmse:.4f} eV/átomo")
+    print(f"\n--- Métricas Finais ---")
+    print(f"R² Teste:       {r2:.4f}")
+    print(f"MAE Teste:      {mae:.4f}")
+    print(f"RMSE Teste:     {rmse:.4f}")
+    print(f"R² CV (5-Fold): {cv_scores.mean():.4f}")
 
-    os.makedirs('results/figures', exist_ok=True)
+    if salvar_modelo:
+        os.makedirs('TCC/results/figures', exist_ok=True)
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-    #  Gráfico: Valor Real vs Valor Previsto
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        # Gráfico 1: Real vs Previsto
+        axes[0].scatter(y_test, y_pred, alpha=0.4, s=15, color='#5B86E5', edgecolors='white', linewidth=0.3)
+        lim_min = min(y_test.min(), y_pred.min())
+        lim_max = max(y_test.max(), y_pred.max())
+        axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
+        axes[0].set_xlabel('hform Real (eV/átomo)')
+        axes[0].set_ylabel('hform Previsto (eV/átomo)')
+        axes[0].set_title(f'Regressão Linear — R² = {r2:.4f}')
+        axes[0].legend()
 
-    axes[0].scatter(y_test, y_pred, alpha=0.4, s=15, color='#5B86E5', edgecolors='white', linewidth=0.3)
-    lim_min = min(y_test.min(), y_pred.min())
-    lim_max = max(y_test.max(), y_pred.max())
-    axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
-    axes[0].set_xlabel('hform Real (eV/átomo)')
-    axes[0].set_ylabel('hform Previsto (eV/átomo)')
-    axes[0].set_title(f'Regressão Linear — R² = {r2:.4f}')
-    axes[0].legend()
+        # Gráfico 2: Distribuição dos Resíduos
+        residuos = y_test - y_pred
+        axes[1].hist(residuos, bins=60, color='#36D1DC', edgecolor='white', alpha=0.85)
+        axes[1].axvline(0, color='red', linestyle='--', linewidth=1.5)
+        axes[1].set_xlabel('Resíduo (Real - Previsto) (eV/átomo)')
+        axes[1].set_ylabel('Frequência')
+        axes[1].set_title(f'Distribuição dos Resíduos — MAE = {mae:.4f}')
 
-    # 7b. Gráfico: Distribuição dos Resíduos (Erros)
-    residuos = y_test - y_pred
-    axes[1].hist(residuos, bins=60, color='#36D1DC', edgecolor='white', alpha=0.85)
-    axes[1].axvline(0, color='red', linestyle='--', linewidth=1.5)
-    axes[1].set_xlabel('Resíduo (Real - Previsto) (eV/átomo)')
-    axes[1].set_ylabel('Frequência')
-    axes[1].set_title(f'Distribuição dos Resíduos — MAE = {mae:.4f}')
+        plt.tight_layout()
+        plt.savefig('TCC/results/figures/regressao_linear_resultados.png', dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        os.makedirs('TCC/models', exist_ok=True)
+        joblib.dump(modelo, 'TCC/models/regressao_linear.pkl')
+        joblib.dump(scaler, 'TCC/models/scaler_regressao_linear.pkl')
+        print("\n-> Modelo, Scaler e Gráficos salvos com sucesso!")
 
-    plt.tight_layout()
-    plt.savefig('results/figures/regressao_linear_resultados.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print("\n  Gráficos salvos em: results/figures/regressao_linear_resultados.png")
 
-    # Salvar o Modelo Treinado
-    os.makedirs('models', exist_ok=True)
-    joblib.dump(modelo, 'models/regressao_linear.pkl')
-    joblib.dump(scaler, 'models/scaler_regressao_linear.pkl')
-    print(" Modelo salvo em: models/regressao_linear.pkl")
+def main():
+    # ETAPA 1: CALIBRAÇÃO (Superfície Linear Perfeita)
+    np.random.seed(42)
+    x1 = np.random.rand(100) * 10
+    x2 = np.random.rand(100) * 5
+    y_perfeito = 5 * x1 - 2 * x2 + 10
 
-    print("\n RESUMO — REGRESSÃO LINEAR (BASELINE)")
-    print(f"  Materiais no treino:  {len(X_train)}")
-    print(f"  Materiais no teste:   {len(X_test)}")
-    print(f"  Features utilizadas:  {len(features)}")
-    print(f"  R² (Teste):           {r2:.4f}")
-    print(f"  MAE (Teste):          {mae:.4f} eV/átomo")
-    print(f"  RMSE (Teste):         {rmse:.4f} eV/átomo")
-    print(f"  R² CV (5-Fold):       {scores_cv.mean():.4f} ± {scores_cv.std():.4f}")
+    df_teste = pd.DataFrame({'f1': x1, 'f2': x2, 'hform': y_perfeito})
+    X_sintetico = df_teste[['f1', 'f2']]
+    y_sintetico = df_teste['hform']
 
+    executar_pipeline_lr(
+        X=X_sintetico, 
+        y=y_sintetico, 
+        nome_etapa="Calibração do Modelo Baseline (Equação Linear)", 
+        salvar_modelo=False
+    )
+
+    # ETAPA 2: PROJETO PRINCIPAL (Dados Reais C2DB)
+    caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+    try:
+        df_real = pd.read_csv(caminho_dados)
+    except FileNotFoundError:
+        print(f"\nERRO: O arquivo '{caminho_dados}' não foi encontrado.")
+        return
+
+    target = 'hform'
+    features = [col for col in df_real.columns if col not in [target, 'formula']]
+    
+    X_real = df_real[features].fillna(0)
+    y_real = df_real[target]
+
+    executar_pipeline_lr(
+        X=X_real, 
+        y=y_real, 
+        nome_etapa="Treinamento com Dados Reais (C2DB)", 
+        salvar_modelo=True
+    )
 
 if __name__ == "__main__":
     main()
-
-    print("\n--- INICIANDO CALIBRAÇÃO DO MODELO BASELINE ---")
-
-np.random.seed(42)
-x1 = np.random.rand(100) * 10
-x2 = np.random.rand(100) * 5
-y_perfeito = 5 * x1 - 2 * x2 + 10
-
-df_teste = pd.DataFrame({'f1': x1, 'f2': x2, 'hform': y_perfeito})
-X = df_teste[['f1', 'f2']]
-y = df_teste['hform']
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
-
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
-modelo = LinearRegression()
-modelo.fit(X_train_scaled, y_train)
-y_pred = modelo.predict(X_test_scaled)
-cv_scores = cross_val_score(modelo, X_train_scaled, y_train, cv=5, scoring='r2')
-
-print(f"R² Teste:       {r2_score(y_test, y_pred):.4f}")
-print(f"MAE Teste:      {mean_absolute_error(y_test, y_pred):.4f}")
-print(f"R² CV (5-Fold): {cv_scores.mean():.4f}")
