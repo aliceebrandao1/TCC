@@ -1,0 +1,165 @@
+"""
+Estratificação de Erros por Família Cristalográfica
+Painel Comparativo: Regressão Linear, Gradient Boosting, Random Forest e Rede Neural
+"""
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import joblib
+from sklearn.model_selection import train_test_split
+from pymatgen.core import Composition
+import warnings
+
+warnings.filterwarnings("ignore")
+
+def classificar_familia_2d(formula_str):
+    """
+    Tradutor Químico: Lê a string da fórmula e classifica o material 2D.
+    """
+    try:
+        comp = Composition(formula_str)
+        elementos = [el.symbol for el in comp.elements]
+        estequiometria = list(comp.as_dict().values())
+    except:
+        return 'Fórmula Inválida'
+
+    metais_transicao = ['Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 
+                        'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+                        'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg']
+    calcogenios = ['S', 'Se', 'Te']
+    halogenios = ['F', 'Cl', 'Br', 'I']
+
+    tem_halogenio = any(el in halogenios for el in elementos)
+    if tem_halogenio:
+        tem_metal = any(el in metais_transicao for el in elementos)
+        tem_calcogenio = any(el in calcogenios for el in elementos)
+        
+        if tem_metal:
+            return 'Haletos com Metais de Transição'
+        elif tem_calcogenio:
+            return 'Haletos com Calcogênios'
+        else:
+            return 'Outros Haletos'
+
+    if 'O' in elementos:
+        return 'Óxidos'
+
+    if len(elementos) == 2:
+        atomo1, atomo2 = elementos[0], elementos[1]
+        tem_metal = (atomo1 in metais_transicao) or (atomo2 in metais_transicao)
+        tem_calcogenio = (atomo1 in calcogenios) or (atomo2 in calcogenios)
+        
+        if tem_metal and tem_calcogenio and (estequiometria == [1.0, 2.0] or estequiometria == [2.0, 1.0]):
+            return 'TMDs (Dicalcogenetos)'
+        else:
+            return 'Outros Binários'
+            
+    if len(elementos) == 1:
+        return 'Monoelementares'
+
+    return 'Ternários / Multicomponentes'
+
+def main():
+    print("\n" + "="*65)
+    print(" INICIANDO ESTRATIFICAÇÃO DE ERROS (PAINEL 2x2 DE MODELOS) ")
+    print("="*65)
+
+    caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+    try:
+        df = pd.read_csv(caminho_dados)
+    except FileNotFoundError:
+        print("ERRO: Arquivo de dados não encontrado.")
+        return
+
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+
+    X = df[features].fillna(0)
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42
+    )
+    
+    df_test = df.loc[X_test.index].copy()
+
+    print("Carregando modelos treinados...")
+    try:
+        modelos = {
+            'LR':  (joblib.load('TCC/models/regressao_linear.pkl'), joblib.load('TCC/models/scaler_regressao_linear.pkl')),
+            'GB':  (joblib.load('TCC/models/gradient_boosting.pkl'), joblib.load('TCC/models/scaler_gb.pkl')),
+            'RF':  (joblib.load('models/random_forest.pkl'), joblib.load('models/scaler_rf.pkl')),
+            'RNA': (joblib.load('models/rede_neural.pkl'), joblib.load('models/scaler_rna.pkl')) 
+        }
+    except FileNotFoundError as e:
+        print(f"ERRO: Algum modelo não foi encontrado. Detalhe: {e}")
+        return
+
+    print("Calculando erros absolutos por família química...")
+    for nome, (modelo, scaler) in modelos.items():
+        X_test_scaled = scaler.transform(X_test)
+        pred = modelo.predict(X_test_scaled)
+        df_test[f'erro_abs_{nome}'] = np.abs(df_test['hform'] - pred)
+
+    df_test['Classe'] = df_test['formula'].apply(classificar_familia_2d)
+
+    #Exportando a lista completa de materiais por classe
+    os.makedirs('TCC/results/tables', exist_ok=True)
+    caminho_lista_classes = 'TCC/results/tables/materiais_por_classe.csv'
+    
+    # Organiza a tabela alfabeticamente pela Classe e depois pela Fórmula
+    df_materiais_classes = df_test[['Classe', 'formula']].sort_values(by=['Classe', 'formula'])
+    df_materiais_classes.to_csv(caminho_lista_classes, index=False)
+    print(f"-> Tabela de classificação gerada em: '{caminho_lista_classes}'")
+
+    resumo = df_test.groupby('Classe').agg(
+        MAE_LR=('erro_abs_LR', 'mean'),
+        MAE_GB=('erro_abs_GB', 'mean'),
+        MAE_RF=('erro_abs_RF', 'mean'),
+        MAE_RNA=('erro_abs_RNA', 'mean'),
+        Quantidade=('formula', 'count')
+    ).reset_index()
+
+    resumo = resumo.sort_values(by='MAE_LR', ascending=True)
+
+    print("Gerando painel gráfico de estratificação...")
+    os.makedirs('TCC/results/figures', exist_ok=True)
+    
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True)
+    fig.suptitle('Estratificação do Erro Absoluto Médio (MAE) por Família de Material 2D', fontsize=16, y=0.95)
+
+    configs_grafico = [
+        (axes[0, 0], 'MAE_LR', 'Regressão Linear', '#5B86E5'),
+        (axes[0, 1], 'MAE_GB', 'Gradient Boosting', '#ff7f50'),
+        (axes[1, 0], 'MAE_RF', 'Random Forest', '#2ca02c'),
+        (axes[1, 1], 'MAE_RNA', 'Rede Neural', '#d62728')
+    ]
+
+    for ax, coluna_erro, titulo, cor in configs_grafico:
+        barras = ax.barh(resumo['Classe'], resumo[coluna_erro], color=cor, edgecolor='black', alpha=0.8)
+        ax.set_title(titulo, fontsize=14)
+        ax.grid(axis='x', linestyle='--', alpha=0.6)
+        
+        if ax in [axes[0, 1], axes[1, 1]]:
+            ax.set_yticklabels([])
+            
+        for barra, qtde in zip(barras, resumo['Quantidade']):
+            ax.text(barra.get_width() + 0.01, barra.get_y() + barra.get_height()/2, 
+                    f"(n={qtde})", va='center', fontsize=9, color='gray')
+
+    axes[1, 0].set_xlabel('Erro Absoluto Médio (MAE) (eV/átomo)', fontsize=12)
+    axes[1, 1].set_xlabel('Erro Absoluto Médio (MAE) (eV/átomo)', fontsize=12)
+
+    plt.subplots_adjust(wspace=0.05, hspace=0.15)
+    
+    caminho_figura = 'TCC/results/figures/painel_estratificacao_classes.png'
+    plt.savefig(caminho_figura, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"-> Painel comparativo salvo com sucesso em '{caminho_figura}'")
+    print("="*65 + "\n")
+
+if __name__ == "__main__":
+    main()

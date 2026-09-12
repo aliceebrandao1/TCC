@@ -1,0 +1,135 @@
+"""
+Análise de Resíduos e Extração de Outliers
+Comparativo de Modelos: Linear, Gradient Boosting, Random Forest e Rede Neural
+"""
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import joblib
+from sklearn.model_selection import train_test_split
+
+def main():
+    print("\n" + "="*60)
+    print(" INVESTIGAÇÃO DE RESÍDUOS E OUTLIERS (CONJUNTO DE TESTE) ")
+    print("="*60)
+
+    caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+    try:
+        df = pd.read_csv(caminho_dados)
+    except FileNotFoundError:
+        print(f"ERRO: Arquivo de dados não encontrado em {caminho_dados}")
+        return
+
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+
+    X = df[features].fillna(0)
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42
+    )
+
+    df_test = df.loc[X_test.index].copy()
+
+    print("Carregando modelos e normalizadores...")
+    try:
+        # Linear
+        lr_model = joblib.load('TCC/models/regressao_linear.pkl')
+        lr_scaler = joblib.load('TCC/models/scaler_regressao_linear.pkl')
+        
+        # Gradient Boosting 
+        gb_model = joblib.load('TCC/models/gradient_boosting.pkl')
+        gb_scaler = joblib.load('TCC/models/scaler_gb.pkl')
+        
+        # Random Forest
+        rf_model = joblib.load('models/random_forest.pkl')
+        rf_scaler = joblib.load('models/scaler_rf.pkl')
+        
+        # Rede Neural
+        rna_model = joblib.load('models/rede_neural.pkl')
+        rna_scaler = joblib.load('models/scaler_rna.pkl')
+    except FileNotFoundError as e:
+        print(f"ERRO: Arquivo não encontrado. Verifique se todos os modelos foram salvos. Detalhe: {e}")
+        return
+
+    print("Executando previsões e calculando erros...")
+    
+    # 1. Linear
+    X_test_lr = lr_scaler.transform(X_test)
+    df_test['pred_LR'] = lr_model.predict(X_test_lr)
+    df_test['erro_abs_LR'] = np.abs(df_test['hform'] - df_test['pred_LR'])
+
+    # 2. Gradient Boosting
+    X_test_gb = gb_scaler.transform(X_test)
+    df_test['pred_GB'] = gb_model.predict(X_test_gb)
+    df_test['erro_abs_GB'] = np.abs(df_test['hform'] - df_test['pred_GB'])
+
+    # 3. Random Forest
+    X_test_rf = rf_scaler.transform(X_test)
+    df_test['pred_RF'] = rf_model.predict(X_test_rf)
+    df_test['erro_abs_RF'] = np.abs(df_test['hform'] - df_test['pred_RF'])
+
+    # 4. Rede Neural
+    X_test_rna = rna_scaler.transform(X_test)
+    df_test['pred_RNA'] = rna_model.predict(X_test_rna)
+    df_test['erro_abs_RNA'] = np.abs(df_test['hform'] - df_test['pred_RNA'])
+
+    # VISUALIZAÇÃO DA DISTRIBUIÇÃO DOS ERROS
+    os.makedirs('TCC/results/figures', exist_ok=True)
+    plt.figure(figsize=(12, 7))
+    
+    # Plotando os histogramas sobrepostos
+    plt.hist(df_test['erro_abs_LR'], bins=50, alpha=0.4, label='Regressão Linear', color='#5B86E5')
+    plt.hist(df_test['erro_abs_GB'], bins=50, alpha=0.4, label='Gradient Boosting', color='#ff7f50')
+    plt.hist(df_test['erro_abs_RF'], bins=50, alpha=0.4, label='Random Forest', color='#2ca02c')
+    plt.hist(df_test['erro_abs_RNA'], bins=50, alpha=0.4, label='Rede Neural', color='#d62728')
+    
+    plt.xlabel('Erro Absoluto ($|h_{form\_real} - h_{form\_previsto}|$) (eV/átomo)')
+    plt.ylabel('Frequência (Quantidade de Materiais)')
+    plt.title('Distribuição Comparativa de Erros Residuais (Quarteto)')
+    
+    colunas_erros = ['erro_abs_LR', 'erro_abs_GB', 'erro_abs_RF', 'erro_abs_RNA']
+    plt.xlim(0, df_test[colunas_erros].max().max())
+    plt.legend()
+    plt.grid(axis='y', alpha=0.3)
+    
+    plt.savefig('TCC/results/figures/comparativo_residuos_quarteto.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("-> Gráfico de distribuição de erros salvo em 'results/figures/comparativo_residuos_quarteto.png'")
+
+    # EXTRAÇÃO DOS OUTLIERS
+    limite_erro = 0.50 # eV/átomo
+    
+    # Selecionamos materiais onde PELO MENOS UM dos modelos errou por mais de 0.5 eV
+    outliers = df_test[
+        (df_test['erro_abs_LR'] > limite_erro) |
+        (df_test['erro_abs_GB'] > limite_erro) |
+        (df_test['erro_abs_RF'] > limite_erro) | 
+        (df_test['erro_abs_RNA'] > limite_erro)
+    ]
+    
+    colunas_finais = [
+        'formula', 'hform', 
+        'pred_LR', 'erro_abs_LR', 
+        'pred_GB', 'erro_abs_GB',
+        'pred_RF', 'erro_abs_RF', 
+        'pred_RNA', 'erro_abs_RNA'
+    ]
+    
+    tabela_outliers = outliers[colunas_finais].sort_values(by='erro_abs_RF', ascending=False)
+    
+    os.makedirs('TCC/results/tables', exist_ok=True)
+    caminho_tabela = 'TCC/results/tables/lista_outliers_anomalias.csv'
+    tabela_outliers.to_csv(caminho_tabela, index=False)
+    
+    print(f"\n--- RELATÓRIO DE ANOMALIAS ---")
+    print(f"Total de materiais no teste: {len(df_test)}")
+    print(f"Materiais com erro severo (> {limite_erro} eV/átomo): {len(tabela_outliers)}")
+    print(f"-> Tabela de investigação química salva em '{caminho_tabela}'")
+    print("="*60 + "\n")
+
+if __name__ == "__main__":
+    main()
