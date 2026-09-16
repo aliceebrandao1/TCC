@@ -1,0 +1,354 @@
+""
+"ANÁLISE COMPLETA DE MODELOS (PREVISÃO DE ENTALPIA DE FORMAÇÃO - HFORM)"
+""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import warnings
+from sklearn.model_selection import train_test_split, learning_curve
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.neural_network import MLPRegressor
+import shap
+from pymatgen.core import Composition
+warnings.filterwarnings('ignore')
+
+print("1. Carregando Dados e Traduzindo Química...")
+caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv' 
+try:
+    df = pd.read_csv(caminho_dados)
+except FileNotFoundError:
+    print(f"ERRO: Arquivo não encontrado em {caminho_dados}")
+    exit()
+
+target = 'hform'
+features = [col for col in df.columns if col not in [target, 'formula']]
+
+def classificar_familia_2d(formula_str):
+    try:
+        comp = Composition(formula_str)
+        elementos = [el.symbol for el in comp.elements]
+        estequiometria = list(comp.as_dict().values())
+    except:
+        return 'Inválida'
+
+    metais_transicao = ['Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 
+                        'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+                        'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg']
+    calcogenios = ['S', 'Se', 'Te']
+    halogenios = ['F', 'Cl', 'Br', 'I']
+
+    if any(el in halogenios for el in elementos): return 'Haletos'
+    if 'O' in elementos: return 'Óxidos'
+    
+    if len(elementos) == 2:
+        atomo1, atomo2 = elementos[0], elementos[1]
+        tem_metal = (atomo1 in metais_transicao) or (atomo2 in metais_transicao)
+        tem_calcogenio = (atomo1 in calcogenios) or (atomo2 in calcogenios)
+        
+        # Confere se é um TMD legítimo (Metal + Calcogênio na proporção 1:2)
+        if tem_metal and tem_calcogenio and (estequiometria == [1.0, 2.0] or estequiometria == [2.0, 1.0]):
+            return 'TMDs'
+        else:
+            return 'Outros Binários'
+            
+    return 'Multicomponentes'
+
+df['Family'] = df['formula'].apply(classificar_familia_2d)
+
+X = df[features].fillna(0)
+y = df[target]
+
+X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
+    X, y, df.index, test_size=0.20, random_state=42
+)
+
+scaler = StandardScaler()
+X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=features)
+X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=features)
+
+df_test = df.iloc[idx_test].copy().reset_index(drop=True)
+y_test = y_test.values
+
+# =========================================================================
+# TREINAMENTO BASE DAS ARQUITETURAS
+# =========================================================================
+models = {
+    'Linear': LinearRegression(),
+    'Gradient Boosting': GradientBoostingRegressor(n_estimators=100, random_state=42),
+    'Random Forest': RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=42),
+    'Rede Neural': MLPRegressor(hidden_layer_sizes=(100, 50), max_iter=300, random_state=42)
+}
+
+preds = {}
+maes = {}
+
+print("Treinando as arquiteturas (Isso pode levar alguns segundos)...")
+for m_name, model in models.items():
+    model.fit(X_train_scaled, y_train)
+    y_p = model.predict(X_test_scaled)
+    preds[m_name] = y_p
+    maes[m_name] = mean_absolute_error(y_test, y_p)
+print("Treinamento concluído!\n")
+
+mapes = {m: np.mean(np.abs((y_test[np.abs(y_test) > 0.05] - preds[m][np.abs(y_test) > 0.05]) / y_test[np.abs(y_test) > 0.05])) for m in models.keys()}
+tabela_metricas = pd.DataFrame({'MAE (eV)': maes, 'MAPE': mapes})
+tabela_metricas['MAPE'] = tabela_metricas['MAPE'].apply(lambda x: f"{x:.2%}")
+print("\n--- MÉTRICAS GLOBAIS ---")
+print(tabela_metricas)
+
+# =========================================================================
+# PARTE 0: Distribuição por Faixa de Erro (Com Porcentagens)
+# =========================================================================
+print("Gerando Parte 0: Gráfico de Faixas de Erro...")
+def get_bands_pct(y_t, y_p):
+    errors = np.abs(y_t - y_p)
+    total = len(y_t)
+    return {
+        '<0.1': (errors < 0.1).sum() / total * 100,
+        '0.1-0.2': ((errors >= 0.1) & (errors < 0.2)).sum() / total * 100,
+        '0.2-0.5': ((errors >= 0.2) & (errors < 0.5)).sum() / total * 100,
+        '>0.5': (errors >= 0.5).sum() / total * 100
+    }
+
+bands_data = {m: get_bands_pct(y_test, preds[m]) for m in models.keys()}
+bands_labels = ['<0.1', '0.1-0.2', '0.2-0.5', '>0.5']
+colors = ['#1a9850', '#a6d96a', '#fdae61', '#d73027']
+
+fig, ax = plt.subplots(figsize=(10, 5))
+bottoms = np.zeros(len(models))
+model_names = list(models.keys())
+
+for i, band in enumerate(bands_labels):
+    values = [bands_data[m][band] for m in model_names]
+    bars = ax.bar(model_names, values, bottom=bottoms, label=f'{band} eV', color=colors[i], edgecolor='white')
+    
+    for j, val in enumerate(values):
+        if val > 2.0: # Só escreve se o bloco for maior que 2% para não poluir
+            # Usa texto branco nos blocos extremos (verde escuro e vermelho) e preto nos do meio
+            text_color = 'white' if i == 0 or i == 3 else 'black'
+            ax.text(j, bottoms[j] + val/2, f'{val:.1f}%', 
+                    ha='center', va='center', color=text_color, fontweight='bold', fontsize=9)
+            
+    bottoms += np.array(values)
+
+ax.set_ylabel('Fração do Teste (%)')
+ax.set_title('Composição do Erro (|Erro| eV/átomo)')
+ax.legend(title='|Erro| (eV)', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.savefig('/home/maria_alice/TCC/results/figures/analise_faixas_erro.png', dpi=300, bbox_inches='tight')
+plt.close()
+
+# =========================================================================
+# PARTE 1: Interseção e Diagnóstico Físico (Onde todos falham?)
+# =========================================================================
+print("\nGerando Parte 1: Matriz de Co-ocorrência de Anomalias...")
+outliers_df = pd.DataFrame({m: np.abs(y_test - preds[m]) > 0.5 for m in models.keys()})
+
+cooc_matrix = np.zeros((4, 4))
+keys = list(models.keys())
+for i in range(4):
+    for j in range(4):
+        cooc_matrix[i, j] = np.sum(outliers_df[keys[i]] & outliers_df[keys[j]])
+
+plt.figure(figsize=(6, 5))
+sns.heatmap(cooc_matrix, annot=True, fmt=".0f", xticklabels=keys, yticklabels=keys, cmap="Reds")
+plt.title("Interseção de Outliers (> 0.5 eV)")
+plt.savefig('/home/maria_alice/TCC/results/figures/analise_matriz_outliers.png', dpi=300, bbox_inches='tight')
+plt.close()
+
+# ADENDO VISUAL: Mapa de Calor dos Piores Materiais (Todos os Modelos)
+print("\nGerando Mapa de Calor dos Piores Outliers Nominais...")
+
+df_erros = df_test[['formula', 'Family']].copy()
+for m in models.keys():
+    df_erros[m] = np.abs(y_test - preds[m])
+df_erros['Erro_Medio'] = df_erros[list(models.keys())].mean(axis=1)
+
+top_outliers = df_erros.sort_values(by='Erro_Medio', ascending=False).head(15)
+top_outliers['Rotulo'] = top_outliers['formula'] + " (" + top_outliers['Family'] + ")"
+top_outliers = top_outliers.set_index('Rotulo')
+dados_heatmap = top_outliers[list(models.keys())]
+
+plt.figure(figsize=(10, 8))
+sns.heatmap(dados_heatmap, annot=True, fmt=".2f", cmap="YlOrRd", 
+            cbar_kws={'label': 'Erro Absoluto (eV/átomo)'}, linewidths=0.5)
+
+plt.title('Top 15 Materiais Mais Críticos: Comparativo de Erro por Modelo', fontsize=14, pad=15)
+plt.ylabel('')
+plt.xlabel('Arquitetura Preditiva', labelpad=10, fontweight='bold')
+plt.xticks(rotation=15)
+
+os.makedirs('results/figures', exist_ok=True)
+caminho_mapa = 'results/figures/heatmap_outliers_nominais.png'
+plt.savefig(caminho_mapa, dpi=300, bbox_inches='tight')
+plt.close()
+
+print(f"-> Mapa de calor salvo lindamente em: {caminho_mapa}")
+
+
+# =========================================================================
+# PARTE 0 (Continuação): Histogramas de Distribuição (MAE e MAPE)
+# =========================================================================
+print("\nGerando Histogramas de Distribuição Contínua (MAE e MAPE)...")
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+model_names = list(models.keys())
+
+for m in model_names:
+    err_abs = np.abs(y_test - preds[m])
+    sns.kdeplot(err_abs, ax=axes[0], label=m, fill=True, alpha=0.2, linewidth=2)
+    
+axes[0].set_title("Distribuição do Erro Absoluto (eV/átomo)", fontsize=12)
+axes[0].set_xlabel("Erro Absoluto (|Real - Previsto|)")
+axes[0].set_ylabel("Densidade de Materiais")
+axes[0].set_xlim(0, 1.5)  
+axes[0].legend()
+
+# Plot 2: Distribuição do Erro Percentual (MAPE)
+for m in model_names:
+    mask = np.abs(y_test) > 0.05 
+    err_pct = np.abs((y_test[mask] - preds[m][mask]) / y_test[mask]) * 100
+    sns.kdeplot(err_pct, ax=axes[1], label=m, fill=True, alpha=0.2, linewidth=2)
+
+axes[1].set_title("Distribuição do Erro Percentual Absoluto", fontsize=12)
+axes[1].set_xlabel("Erro Percentual (%)")
+axes[1].set_ylabel("Densidade de Materiais")
+axes[1].set_xlim(0, 150) 
+axes[1].legend()
+
+plt.tight_layout()
+os.makedirs('results/figures', exist_ok=True)
+caminho_hist = 'results/figures/histograma_distribuicao_erros.png'
+plt.savefig(caminho_hist, dpi=300, bbox_inches='tight')
+plt.close()
+
+print(f"-> Histogramas contínuos salvos lindamente em: {caminho_hist}") 
+
+# =========================================================================
+# PARTE 2: Rigor Amostral (Bootstrap) para TODOS os Modelos
+# =========================================================================
+print("\nGerando Parte 2: Incerteza por Família para os 4 Modelos...")
+
+def bootstrap_mae(y_t, y_p, n_iters=100):
+    b_maes = [mean_absolute_error(y_t[idx], y_p[idx]) 
+              for idx in [np.random.choice(len(y_t), len(y_t), replace=True) for _ in range(n_iters)]]
+    return np.mean(b_maes), np.std(b_maes)
+
+results_family_all = []
+# Pegamos apenas famílias que tenham pelo menos 10 materiais para ter validade estatística
+familias_validas = [fam for fam in df_test['Family'].unique() if np.sum(df_test['Family'] == fam) >= 10]
+
+for fam in familias_validas:
+    mask = (df_test['Family'] == fam).values
+    y_t_f = y_test[mask]
+    
+    for m_name in models.keys():
+        y_p_f = preds[m_name][mask]
+        mae_b, std_b = bootstrap_mae(y_t_f, y_p_f)
+        results_family_all.append({
+            'Família': fam, 
+            'Modelo': m_name, 
+            'MAE_Boot': mae_b, 
+            'Incerteza': std_b
+        })
+
+df_boot_all = pd.DataFrame(results_family_all)
+
+fig, ax = plt.subplots(figsize=(12, 6))
+
+x = np.arange(len(familias_validas))
+width = 0.2  
+multiplier = 0
+colors = ['#4c72b0', '#dd8452', '#55a868', '#c44e52'] 
+for i, m_name in enumerate(models.keys()):
+    offset = width * multiplier
+    
+    dados_modelo = df_boot_all[df_boot_all['Modelo'] == m_name].set_index('Família').reindex(familias_validas)
+    
+    ax.bar(x + offset, dados_modelo['MAE_Boot'], width, 
+           yerr=dados_modelo['Incerteza'], capsize=4, label=m_name, color=colors[i], alpha=0.9, edgecolor='white')
+    multiplier += 1
+
+ax.set_ylabel('MAE Absoluto (+/- Incerteza) em eV/átomo')
+ax.set_title('Rigor Amostral (Bootstrap): Comparação dos 4 Modelos por Classe Química', pad=15)
+ax.set_xticks(x + width * 1.5)
+ax.set_xticklabels(familias_validas)
+ax.legend(title='Arquitetura Preditiva', bbox_to_anchor=(1.05, 1), loc='upper left')
+
+plt.tight_layout()
+os.makedirs('results/figures', exist_ok=True)
+caminho_boot_todos = 'results/figures/analise_incerteza_todos_modelos.png'
+plt.savefig(caminho_boot_todos, dpi=300, bbox_inches='tight')
+plt.close()
+
+print(f"-> Gráfico de Bootstrap comparativo salvo lindamente em: {caminho_boot_todos}")   
+
+# =========================================================================
+# PARTE 3: Interpretabilidade (SHAP) - Focando nos Haletos
+# =========================================================================
+print("\nGerando Parte 3: Valores SHAP (Dissecando os Haletos)...")
+shap_model = models['Random Forest'] 
+haletos_idx = df_test[df_test['Family'] == 'Haletos'].index
+
+if len(haletos_idx) > 0:
+    X_shap = X_test_scaled.iloc[haletos_idx].sample(min(50, len(haletos_idx)), random_state=42)
+    explainer = shap.TreeExplainer(shap_model)
+    shap_values = explainer.shap_values(X_shap)
+    
+    plt.figure()
+    shap.summary_plot(shap_values, X_shap, max_display=7, show=False)
+    plt.title("Quais features importam mais para os Haletos?")
+    plt.savefig('/home/maria_alice/TCC/results/figures/analise_shap_haletos.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+# =========================================================================
+# PARTE 4: Eficiência Operacional (Curva de Aprendizado)
+# =========================================================================
+print("\nGerando Parte 4: Curva de Aprendizado (Random Forest)...")
+try:
+    # Usando o Random Forest (rápido e paralelizado com n_jobs=-1)
+    train_sizes, train_scores, cv_scores = learning_curve(
+        RandomForestRegressor(n_estimators=50, n_jobs=-1, random_state=42),
+        X_train_scaled, y_train, train_sizes=[0.2, 0.4, 0.6, 0.8, 1.0], 
+        scoring='neg_mean_absolute_error', cv=3
+    )
+    plt.figure(figsize=(7, 4))
+    plt.plot(train_sizes, -np.mean(train_scores, axis=1), 'o-', color='crimson', label="Treino")
+    plt.plot(train_sizes, -np.mean(cv_scores, axis=1), 's-', color='mediumseagreen', label="Validação Cruzada")
+    plt.title("O modelo melhoraria se tivéssemos mais dados no C2DB?")
+    plt.xlabel("Volume de Materiais no Treino")
+    plt.ylabel("Erro (MAE)")
+    plt.legend()
+    plt.grid(alpha=0.4)
+    plt.savefig('/home/maria_alice/TCC/results/figures/analise_curva_aprendizado.png', dpi=300, bbox_inches='tight')
+    plt.close()
+except Exception as e:
+    print(f"Não foi possível gerar a curva: {e}")
+
+
+
+# =========================================================================
+# ADENDO: Teste de Integridade de Classes Ocultas
+# =========================================================================
+print("Verificando sobreposição de materiais entre famílias...\n")
+
+# Agrupa pela fórmula química e conta quantas famílias diferentes estão associadas a ela
+contagem_familias = df_test.groupby('formula')['Family'].nunique()
+materiais_duplicados = contagem_familias[contagem_familias > 1]
+
+if len(materiais_duplicados) == 0:
+    print("✅ SUCESSO: A base está perfeitamente particionada!")
+    print("Nenhuma fórmula química aparece em mais de uma família simultaneamente.")
+else:
+    print("⚠️ ALERTA: Os seguintes materiais estão sobrepostos em mais de uma classe:")
+    # Mostra exatamente quem são os culpados e em quais famílias estão
+    for formula in materiais_duplicados.index:
+        familias_conflitantes = df_test[df_test['formula'] == formula]['Family'].unique()
+        print(f"-> {formula}: classificado como {familias_conflitantes}")
