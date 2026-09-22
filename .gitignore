@@ -18,3 +18,6 @@ scaler_gb.pkl
 random_forest.pkl
 scaler_rf.pkl
 outliers_rf_rna.csv
+range_valores_features.csv
+tabela_dominio_aplicabilidade.csv
+

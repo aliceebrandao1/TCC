@@ -1,0 +1,28 @@
+import pandas as pd
+import numpy as np
+import os
+
+caminho_features = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+
+if os.path.exists(caminho_features):
+    df_feat = pd.read_csv(caminho_features)
+    
+    # Filtrar apenas colunas numéricas de propriedades
+    colunas_ignoradas = ['formula', 'formula_pretty', 'Family', 'hform', 'h_form', 'material_id']
+    colunas_numeric = [col for col in df_feat.columns if col not in colunas_ignoradas and np.issubdtype(df_feat[col].dtype, np.number)]
+    
+    df_doa = pd.DataFrame({
+        'Atributo Físico (Magpie)': colunas_numeric,
+        'Limite Inferior (Min)': df_feat[colunas_numeric].min().values,
+        'Limite Superior (Max)': df_feat[colunas_numeric].max().values
+    }).round(4)
+    
+    os.makedirs('results/tables', exist_ok=True)
+    caminho_saida = 'results/tables/tabela_dominio_aplicabilidade.csv'
+    df_doa.to_csv(caminho_saida, index=False)
+    
+    print(f"Tabela do Domínio de Aplicabilidade salva com sucesso em: {caminho_saida}")
+    print("\n--- PRÉVIA DA TABELA PARA O TCC ---")
+    print(df_doa.head(10).to_string(index=False))
+else:
+    print(f"Arquivo não encontrado em: {caminho_features}")
