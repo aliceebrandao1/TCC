@@ -1,0 +1,167 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+from pymatgen.core import Composition
+import warnings
+
+warnings.filterwarnings("ignore")
+
+def classificar_familia_2d(formula_str):
+    """
+    Tradutor Químico: Lê a string da fórmula e classifica o material 2D
+    com subdivisões focadas na literatura de estabilidade termodinâmica.
+    Isola materiais monoelementares e detalha classes complexas.
+    """
+    try:
+        comp = Composition(formula_str)
+        elementos = [el.symbol for el in comp.elements]
+        num_elementos = len(elementos)
+    except:
+        return 'Fórmula Inválida'
+
+    metais_transicao = ['Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 
+                        'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+                        'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg']
+    calcogenios = ['S', 'Se', 'Te']
+    halogenios = ['F', 'Cl', 'Br', 'I']
+    ametais_cnb = ['C', 'N', 'B']
+
+    tem_metal = any(el in metais_transicao for el in elementos)
+    tem_calcogenio = any(el in calcogenios for el in elementos)
+    tem_halogenio = any(el in halogenios for el in elementos)
+    tem_oxigenio = 'O' in elementos
+    tem_cnb = any(el in ametais_cnb for el in elementos)
+
+    if num_elementos == 1:
+        return 'Monoelementares'
+
+    if tem_halogenio and tem_metal:
+        if num_elementos == 2:
+            return 'Haletos com MT (Binários)'
+        else:
+            if tem_calcogenio:
+                return 'Calco-haletos com MT (ex: MoSBr)'
+            elif tem_oxigenio:
+                return 'Oxialetos com MT (ex: FeOCl)'
+            else:
+                return 'Haletos com MT (Janus/Mistos)'
+
+    if tem_halogenio and tem_calcogenio:
+        if num_elementos == 2:
+            return 'Haletos c/ Calcogênios (Binários)'
+        else:
+            return 'Haletos c/ Calcogênios (Multicomp.)'
+
+    if tem_metal and tem_calcogenio:
+        if num_elementos == 2:
+            return 'TMDs Clássicos (Binários)'
+        else:
+            return 'TMDs Janus / Ligas (Ternários+)'
+
+    if num_elementos == 2:
+        if tem_oxigenio:
+            return 'Óxidos Binários'
+        elif tem_cnb:
+            return 'Carbetos/Nitretos/Boretos (Binários)'
+        else:
+            return 'Outros Binários (Pnicogenetos, etc)'
+
+    if tem_oxigenio:
+        return 'Óxidos Multicomp. (Perovskitas, etc)'
+        
+    return 'Outros Multicomponentes'
+
+# 1. Carregamento Rápido e Atualização das Classes
+caminho_dados = '/home/maria_alice/TCC/TCC/data/predicoes_modelos.csv'
+df_pred = pd.read_csv(caminho_dados)
+
+df_pred['Family'] = df_pred['formula'].apply(classificar_familia_2d)
+
+modelos = [col for col in df_pred.columns if col not in ['formula', 'Family', 'y_true']]
+
+# 2. Calcular os Erros Absolutos Individuais (|y_true - y_pred|)
+for m_name in modelos:
+    df_pred[f'Erro_{m_name}'] = np.abs(df_pred['y_true'] - df_pred[m_name])
+
+# 3. Extrair o Top 30 Exato de Cada Modelo
+top_n = 30
+outliers_por_modelo = {}
+todos_outliers = set()
+
+for m_name in modelos:
+    top_formulas = df_pred.sort_values(by=f'Erro_{m_name}', ascending=False).head(top_n)['formula'].tolist()
+    outliers_por_modelo[m_name] = set(top_formulas)
+    todos_outliers.update(top_formulas)
+
+# 4. Construir as Matrizes para o Heatmap (Binária para as cores + Texto para os valores de Erro)
+linhas_matriz = []
+linhas_annot = []
+
+for formula in todos_outliers:
+    familia = df_pred[df_pred['formula'] == formula]['Family'].values[0]
+    
+    linha_val = {'Rótulo': f"{formula} ({familia})", 'Família': familia, 'Fórmula': formula}
+    linha_txt = {'Rótulo': f"{formula} ({familia})"}
+    
+    soma_falhas = 0
+    for m_name in modelos:
+        err_val = df_pred[df_pred['formula'] == formula][f'Erro_{m_name}'].values[0]
+        if formula in outliers_por_modelo[m_name]:
+            linha_val[m_name] = 1
+            linha_txt[m_name] = f"{err_val:.3f}"  # Insere o valor exato do erro absoluto
+            soma_falhas += 1
+        else:
+            linha_val[m_name] = 0
+            linha_txt[m_name] = ""  # Célula vazia se não pertencer ao Top 30 deste modelo
+            
+    linha_val['Qtd_Modelos_Falhos'] = soma_falhas
+    linhas_matriz.append(linha_val)
+    linhas_annot.append(linha_txt)
+
+df_matriz = pd.DataFrame(linhas_matriz)
+df_annot_mat = pd.DataFrame(linhas_annot).set_index('Rótulo')[modelos]
+
+# Ordenação: 1º Materiais que falham em mais modelos, 2º Família, 3º Fórmula
+df_matriz = df_matriz.sort_values(
+    by=['Qtd_Modelos_Falhos', 'Família', 'Fórmula'], 
+    ascending=[False, True, True]
+)
+
+# Alinhar a matriz de anotações pela mesma ordem da tabela principal
+df_annot_mat = df_annot_mat.reindex(df_matriz['Rótulo'])
+df_plot = df_matriz.set_index('Rótulo')[modelos]
+
+# 5. Gerar a Visualização com os Valores de Erro Numéricos
+plt.figure(figsize=(12, len(df_plot) * 0.42))
+
+cmap_binario = sns.color_palette(["#fcfcfc", "#b2182b"]) # Fundo neutro e Vermelho escuro
+
+ax = sns.heatmap(
+    df_plot, 
+    cmap=cmap_binario, 
+    linewidths=0.8, 
+    linecolor='white',
+    cbar=False,
+    annot=df_annot_mat, 
+    fmt="",             
+    annot_kws={"size": 8.5, "weight": "bold"}
+)
+
+plt.title(f'Matriz de Intersecção do Top {top_n} de Piores Erros Absolutos\n(Valores exibidos nas células = Erro Absoluto |y_true - y_pred|)', fontsize=13, pad=15)
+plt.ylabel('Material Crítico (Família C2DB)', fontsize=11)
+plt.xlabel('Arquitetura Preditiva', fontsize=12)
+
+plt.xticks(rotation=45, ha='right', fontsize=11)
+plt.yticks(fontsize=10)
+
+os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
+os.makedirs('/home/maria_alice/TCC/results/tables', exist_ok=True)
+
+plt.tight_layout()
+plt.savefig('/home/maria_alice/TCC/results/figures/interseccao_top30_com_valores.png', dpi=300, bbox_inches='tight')
+df_matriz.to_csv('/home/maria_alice/TCC/results/tables/dados_interseccao_top30_com_erros.csv', index=False)
+
+print("Figura gerada com sucesso contendo os valores de erro absoluto atualizados!")
+print("Guardada em: /home/maria_alice/TCC/results/figures/interseccao_top30_com_valores.png")

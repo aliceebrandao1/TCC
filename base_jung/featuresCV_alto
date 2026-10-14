@@ -1,0 +1,151 @@
+"""
+Módulo de Teste de Hipótese: Remoção de Outliers Extremos (Alto CV)
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import warnings
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+
+warnings.filterwarnings("ignore")
+
+def testar_hipotese_remocao_outliers():
+    print("\n" + "="*75)
+    print(" TESTE DE HIPÓTESE: REMOÇÃO DE OUTLIERS (ALTO CV) E AVALIAÇÃO DE MODELOS ")
+    print("="*75)
+
+    caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+    
+    try:
+        df = pd.read_csv(caminho_dados)
+    except FileNotFoundError:
+        print(f"ERRO: Dataset não encontrado em {caminho_dados}")
+        return
+
+    print("1. Calculando métricas estatísticas e isolando as variáveis com maior CV...")
+    
+    df_num = df.select_dtypes(include=[np.number])
+    
+    estatisticas = pd.DataFrame({
+        'Media': df_num.mean(),
+        'Desvio_Padrao': df_num.std(),
+        'Maximo': df_num.max()
+    })
+    
+    estatisticas['CV'] = np.where(
+        estatisticas['Media'] != 0, 
+        np.abs(estatisticas['Desvio_Padrao'] / estatisticas['Media']), 
+        0
+    )
+    
+    estatisticas = estatisticas.sort_values(by='CV', ascending=False)
+    top_4_features = estatisticas.head(4).index.tolist()
+    
+    print("\nTop 4 Features identificadas dinamicamente (Maior Assimetria):")
+    for feat in top_4_features:
+        print(f" - {feat} (CV: {estatisticas.loc[feat, 'CV']:.2f})")
+        
+    print("\n2. Gerando painel gráfico sobreposto (Boxplot + Stripplot)...")
+    
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig.suptitle('Descoberta Automática de Outliers: Features com Maior Assimetria (Alto CV)', fontsize=16, y=0.95, weight='bold')
+    axes = axes.flatten()
+
+    cores = ['#5B86E5', '#ff7f50', '#2ca02c', '#d62728']
+
+    for i, col in enumerate(top_4_features):
+        ax = axes[i]
+        dados_reais = df[col].dropna()
+        
+        sns.boxplot(y=dados_reais, ax=ax, color=cores[i], width=0.3, boxprops=dict(alpha=0.6))
+        
+        # Amostragem para evitar o travamento do Matplotlib
+        amostra = dados_reais.sample(n=min(1000, len(dados_reais)), random_state=42)
+        sns.stripplot(y=amostra, ax=ax, color='black', alpha=0.3, size=3, jitter=0.1)
+
+        media = estatisticas.loc[col, 'Media']
+        std = estatisticas.loc[col, 'Desvio_Padrao']
+        cv = estatisticas.loc[col, 'CV']
+        maximo = estatisticas.loc[col, 'Maximo']
+
+        titulo_curto = col if len(col) < 40 else col[:37] + "..."
+        ax.set_title(titulo_curto, fontsize=12, pad=10, weight='bold')
+        ax.set_ylabel("Valor da Feature", fontsize=10)
+        ax.grid(axis='y', linestyle='--', alpha=0.4)
+
+        texto_estatistico = (
+            f"Média: {media:.2e}\n"
+            f"Desvio Padrão: {std:.2e}\n"
+            f"Valor Máximo: {maximo:.2e}\n"
+            f"CV: {cv:.2f}"
+        )
+        
+        ax.text(0.95, 0.95, texto_estatistico, 
+                transform=ax.transAxes, fontsize=10, 
+                verticalalignment='top', horizontalalignment='right',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+
+    os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
+    caminho_figura = '/home/maria_alice/TCC/results/figures/analise_outliers_automatica.png'
+    plt.savefig(caminho_figura, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"-> Figura gerada com sucesso em: '{caminho_figura}'\n")
+
+    print("3. Removendo as features com alto CV e treinando os modelos...\n")
+    
+    # Isola o alvo e cria a lista de features removendo as 4 piores
+    target = 'hform'
+    colunas_para_remover = top_4_features + [target, 'formula']
+    features = [col for col in df.columns if col not in colunas_para_remover]
+    
+    X = df[features].fillna(0)
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    modelos = {
+        'Regressão Linear': LinearRegression(),
+        'Gradient Boosting': GradientBoostingRegressor(random_state=42),
+        'Random Forest': RandomForestRegressor(random_state=42),
+        'Rede Neural (MLP)': MLPRegressor(max_iter=1000, random_state=42)
+    }
+
+    resultados = []
+
+    for nome, modelo in modelos.items():
+        modelo.fit(X_train_scaled, y_train)
+        pred = modelo.predict(X_test_scaled)
+        
+        r2 = r2_score(y_test, pred)
+        mae = mean_absolute_error(y_test, pred)
+        rmse = np.sqrt(mean_squared_error(y_test, pred))
+        
+        resultados.append({'Modelo': nome, 'R2': r2, 'MAE': mae, 'RMSE': rmse})
+
+    df_resultados = pd.DataFrame(resultados).set_index('Modelo')
+    print("-" * 55)
+    print(f"{'MÉTRICAS DE DESEMPENHO (SEM AS FEATURES DE ALTO CV)':^55}")
+    print("-" * 55)
+    print(df_resultados.to_markdown(floatfmt=".4f"))
+    print("-" * 55 + "\n")
+    
+    print("-> Teste concluído. Compare estas métricas com os seus resultados originais.")
+    print("="*75 + "\n")
+
+if __name__ == "__main__":
+    testar_hipotese_remocao_outliers()

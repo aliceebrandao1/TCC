@@ -1,4 +1,5 @@
 """
+(1)
 Módulo para criação de objetos Pymatgen e geração de features composicionais.
 Baseado no protocolo de Son Gyo Jung et al. e adaptado para previsão de 
 Entalpia de Formação (hform) usando apenas descritores composicionais.
@@ -10,7 +11,6 @@ import pandas as pd
 import joblib
 import pathlib
 from pymatgen.core import Composition
-#from matminer.featurizers.conversions import CompositionToOxidComposition
 from matminer.featurizers.composition import ElementProperty, Stoichiometry, ValenceOrbital
 
 class MaterialFeaturizer():
@@ -59,7 +59,6 @@ class MaterialFeaturizer():
         print(f"Total de materiais (linhas): {num_materiais}")
         print(f"Total de features extraídas (colunas numéricas): {len(features_geradas)}\n")
         
-        # Categorizando as features pelo nome
         magpie = [f for f in features_geradas if f.startswith('MagpieData')]
         deml = [f for f in features_geradas if f.startswith('DemlData')]
         pymatgen_feat = [f for f in features_geradas if f.startswith('PymatgenData')]
@@ -82,7 +81,6 @@ class MaterialFeaturizer():
             
         print("="*60 + "\n")
 
-        # VERIFICAÇÃO DE SEGURANÇA (VALORES VAZIOS) 
         print(" Verificação de Segurança")
         colunas_com_nan = self.df.columns[self.df.isna().any()].tolist()
         if colunas_com_nan:
@@ -116,7 +114,6 @@ class MaterialFeaturizer():
 if __name__ == "__main__":
    
     # ETAPA 1: VALIDAÇÃO FÍSICA (TESTE DE MESA)
-
     print("\n" + "="*60)
     print(" INICIANDO ETAPA 1: VALIDAÇÃO DA FÍSICA E EXTRAÇÃO")
     print("="*60)

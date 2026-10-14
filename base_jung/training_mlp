@@ -36,7 +36,7 @@ def executar_pipeline_rna(X, y, nome_etapa, max_iter=1000, salvar_modelo=False):
     X_test_scaled = scaler.transform(X_test)
 
     print("Treinando a Rede Neural...")
-    
+
     modelo = MLPRegressor(
         hidden_layer_sizes=(100, 50),
         activation='relu',
@@ -81,13 +81,13 @@ def executar_pipeline_rna(X, y, nome_etapa, max_iter=1000, salvar_modelo=False):
         axes[1].set_title('Convergência do Erro')
 
         plt.tight_layout()
-        plt.savefig('TCC/results/figures/rede_neural_resultados.png', dpi=300, bbox_inches='tight')
+        plt.savefig('/home/maria_alice/TCC/results/figures/rede_neural_resultados.png', dpi=300, bbox_inches='tight')
         plt.close()
         
         os.makedirs('models', exist_ok=True)
-        joblib.dump(modelo, 'models/rede_neural.pkl')
-        joblib.dump(scaler, 'models/scaler_rna.pkl')
-        print("\n-> Modelo, Scaler e Gráficos salvos com sucesso!")
+        joblib.dump(modelo, '/home/maria_alice/TCC/models/rede_neural.pkl')
+        joblib.dump(scaler, '/home/maria_alice/TCC/models/scaler_rna.pkl')
+        print("\n Modelo, Scaler e Gráficos salvos com sucesso!")
 
 def main():
 

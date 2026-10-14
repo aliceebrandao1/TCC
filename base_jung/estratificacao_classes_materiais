@@ -1,5 +1,5 @@
 """
-Estratificação de Erros por Família Cristalográfica
+Estratificação de Erros por Família Cristalográfica (Versão Refinada)
 Painel Comparativo: Regressão Linear, Gradient Boosting, Random Forest e Rede Neural
 """
 
@@ -16,12 +16,14 @@ warnings.filterwarnings("ignore")
 
 def classificar_familia_2d(formula_str):
     """
-    Tradutor Químico: Lê a string da fórmula e classifica o material 2D.
+    Tradutor Químico: Lê a string da fórmula e classifica o material 2D
+    com subdivisões focadas na literatura de estabilidade termodinâmica.
+    Isola materiais monoelementares e detalha classes complexas.
     """
     try:
         comp = Composition(formula_str)
         elementos = [el.symbol for el in comp.elements]
-        estequiometria = list(comp.as_dict().values())
+        num_elementos = len(elementos)
     except:
         return 'Fórmula Inválida'
 
@@ -30,47 +32,69 @@ def classificar_familia_2d(formula_str):
                         'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg']
     calcogenios = ['S', 'Se', 'Te']
     halogenios = ['F', 'Cl', 'Br', 'I']
+    ametais_cnb = ['C', 'N', 'B'] # Carbono, Nitrogênio, Boro
 
+    tem_metal = any(el in metais_transicao for el in elementos)
+    tem_calcogenio = any(el in calcogenios for el in elementos)
     tem_halogenio = any(el in halogenios for el in elementos)
-    if tem_halogenio:
-        tem_metal = any(el in metais_transicao for el in elementos)
-        tem_calcogenio = any(el in calcogenios for el in elementos)
-        
-        if tem_metal:
-            return 'Haletos com Metais de Transição'
-        elif tem_calcogenio:
-            return 'Haletos com Calcogênios'
-        else:
-            return 'Outros Haletos'
+    tem_oxigenio = 'O' in elementos
+    tem_cnb = any(el in ametais_cnb for el in elementos)
 
-    if 'O' in elementos:
-        return 'Óxidos'
-
-    if len(elementos) == 2:
-        atomo1, atomo2 = elementos[0], elementos[1]
-        tem_metal = (atomo1 in metais_transicao) or (atomo2 in metais_transicao)
-        tem_calcogenio = (atomo1 in calcogenios) or (atomo2 in calcogenios)
-        
-        if tem_metal and tem_calcogenio and (estequiometria == [1.0, 2.0] or estequiometria == [2.0, 1.0]):
-            return 'TMDs (Dicalcogenetos)'
-        else:
-            return 'Outros Binários'
-            
-    if len(elementos) == 1:
+    # 1. Monoelementares (Corretamente isolados)
+    if num_elementos == 1:
         return 'Monoelementares'
 
-    return 'Ternários / Multicomponentes'
+    # 2. Refinando Haletos com Metais de Transição (MT)
+    if tem_halogenio and tem_metal:
+        if num_elementos == 2:
+            return 'Haletos com MT (Binários)'
+        else:
+            if tem_calcogenio:
+                return 'Calco-haletos com MT (ex: MoSBr)'
+            elif tem_oxigenio:
+                return 'Oxialetos com MT (ex: FeOCl)'
+            else:
+                return 'Haletos com MT (Janus/Mistos)'
+
+    # 3. Haletos com Calcogênios
+    if tem_halogenio and tem_calcogenio:
+        if num_elementos == 2:
+            return 'Haletos c/ Calcogênios (Binários)'
+        else:
+            return 'Haletos c/ Calcogênios (Multicomp.)'
+
+    # 4. TMDs (Dicalcogenetos e Ligas)
+    if tem_metal and tem_calcogenio:
+        if num_elementos == 2:
+            return 'TMDs Clássicos (Binários)'
+        else:
+            return 'TMDs Janus / Ligas (Ternários+)'
+
+    # 5. Refinando os Antigos "Outros Binários"
+    if num_elementos == 2:
+        if tem_oxigenio:
+            return 'Óxidos Binários'
+        elif tem_cnb:
+            return 'Carbetos/Nitretos/Boretos (Binários)'
+        else:
+            return 'Outros Binários (Pnicogenetos, etc)'
+
+    # 6. Refinando Outros Multicomponentes
+    if tem_oxigenio:
+        return 'Óxidos Multicomp. (Perovskitas, etc)'
+        
+    return 'Outros Multicomponentes'
 
 def main():
-    print("\n" + "="*65)
-    print(" INICIANDO ESTRATIFICAÇÃO DE ERROS (PAINEL 2x2 DE MODELOS) ")
-    print("="*65)
+    print("\n" + "="*70)
+    print(" INICIANDO ESTRATIFICAÇÃO DE ERROS REFINADA (PAINEL 2x2) ")
+    print("="*70)
 
     caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
     try:
         df = pd.read_csv(caminho_dados)
     except FileNotFoundError:
-        print("ERRO: Arquivo de dados não encontrado.")
+        print("ERRO: Arquivo de dados não encontrado. Verifique o caminho absoluto.")
         return
 
     target = 'hform'
@@ -88,10 +112,10 @@ def main():
     print("Carregando modelos treinados...")
     try:
         modelos = {
-            'LR':  (joblib.load('TCC/models/regressao_linear.pkl'), joblib.load('TCC/models/scaler_regressao_linear.pkl')),
-            'GB':  (joblib.load('TCC/models/gradient_boosting.pkl'), joblib.load('TCC/models/scaler_gb.pkl')),
-            'RF':  (joblib.load('models/random_forest.pkl'), joblib.load('models/scaler_rf.pkl')),
-            'RNA': (joblib.load('models/rede_neural.pkl'), joblib.load('models/scaler_rna.pkl')) 
+            'LR':  (joblib.load('/home/maria_alice/TCC/models/regressao_linear.pkl'), joblib.load('/home/maria_alice/TCC/models/scaler_regressao_linear.pkl')),
+            'GB':  (joblib.load('/home/maria_alice/TCC/models/gradient_boosting.pkl'), joblib.load('/home/maria_alice/TCC/models/scaler_gb.pkl')),
+            'RF':  (joblib.load('/home/maria_alice/TCC/models/random_forest.pkl'), joblib.load('/home/maria_alice/TCC/models/scaler_rf.pkl')),
+            'RNA': (joblib.load('/home/maria_alice/TCC/models/rede_neural.pkl'), joblib.load('/home/maria_alice/TCC/models/scaler_rna.pkl')) 
         }
     except FileNotFoundError as e:
         print(f"ERRO: Algum modelo não foi encontrado. Detalhe: {e}")
@@ -105,13 +129,24 @@ def main():
 
     df_test['Classe'] = df_test['formula'].apply(classificar_familia_2d)
 
-    #Exportando a lista completa de materiais por classe
-    os.makedirs('TCC/results/tables', exist_ok=True)
-    caminho_lista_classes = 'TCC/results/tables/materiais_por_classe.csv'
+    # --- ETAPA DE VALIDAÇÃO (Verificação de classes únicas) ---
+    print("\nVerificando se há materiais atribuídos a múltiplas classes...")
+    materiais_unicos_classes = df_test.groupby('formula')['Classe'].nunique()
+    conflitos = materiais_unicos_classes[materiais_unicos_classes > 1]
     
-    # Organiza a tabela alfabeticamente pela Classe e depois pela Fórmula
+    if not conflitos.empty:
+        print(f"ATENÇÃO! Materiais em mais de uma classe encontrados:\n{conflitos}")
+    else:
+        print("-> CHECK OK: Nenhum material se repete em mais de uma classe. (Mapeamento 1:1 validado)")
+    print("-" * 70 + "\n")
+    # ----------------------------------------------------------
+
+    # Exportando a lista completa de materiais por classe
+    os.makedirs('/home/maria_alice/TCC/results/tables', exist_ok=True)
+    caminho_lista_classes = '/home/maria_alice/TCC/results/tables/materiais_por_classe_refinada.csv'
+    
     df_materiais_classes = df_test[['Classe', 'formula']].sort_values(by=['Classe', 'formula'])
-    df_materiais_classes.to_csv(caminho_lista_classes, index=False)
+    df_materiais_classes.to_csv(caminho_lista_classes, index=False, encoding='utf-8')
     print(f"-> Tabela de classificação gerada em: '{caminho_lista_classes}'")
 
     resumo = df_test.groupby('Classe').agg(
@@ -125,10 +160,11 @@ def main():
     resumo = resumo.sort_values(by='MAE_LR', ascending=True)
 
     print("Gerando painel gráfico de estratificação...")
-    os.makedirs('TCC/results/figures', exist_ok=True)
+    os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
     
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True)
-    fig.suptitle('Estratificação do Erro Absoluto Médio (MAE) por Família de Material 2D', fontsize=16, y=0.95)
+    # Aumentado o figsize para acomodar o maior número de classes
+    fig, axes = plt.subplots(2, 2, figsize=(16, 15), sharex=True)
+    fig.suptitle('Estratificação do Erro Absoluto Médio (MAE) por Família de Material 2D Refinada', fontsize=16, y=0.93)
 
     configs_grafico = [
         (axes[0, 0], 'MAE_LR', 'Regressão Linear', '#5B86E5'),
@@ -154,12 +190,12 @@ def main():
 
     plt.subplots_adjust(wspace=0.05, hspace=0.15)
     
-    caminho_figura = 'TCC/results/figures/painel_estratificacao_classes.png'
+    caminho_figura = '/home/maria_alice/TCC/results/figures/painel_estratificacao_refinada.png'
     plt.savefig(caminho_figura, dpi=300, bbox_inches='tight')
     plt.close()
     
     print(f"-> Painel comparativo salvo com sucesso em '{caminho_figura}'")
-    print("="*65 + "\n")
+    print("="*70 + "\n")
 
 if __name__ == "__main__":
     main()

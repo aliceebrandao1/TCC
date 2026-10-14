@@ -37,20 +37,20 @@ def main():
     print("Carregando modelos e normalizadores...")
     try:
         # Linear
-        lr_model = joblib.load('TCC/models/regressao_linear.pkl')
-        lr_scaler = joblib.load('TCC/models/scaler_regressao_linear.pkl')
+        lr_model = joblib.load('/home/maria_alice/TCC/models/regressao_linear.pkl')
+        lr_scaler = joblib.load('/home/maria_alice/TCC/models/scaler_regressao_linear.pkl')
         
         # Gradient Boosting 
-        gb_model = joblib.load('TCC/models/gradient_boosting.pkl')
-        gb_scaler = joblib.load('TCC/models/scaler_gb.pkl')
+        gb_model = joblib.load('/home/maria_alice/TCC/models/gradient_boosting.pkl')
+        gb_scaler = joblib.load('/home/maria_alice/TCC/models/scaler_gb.pkl')
         
         # Random Forest
-        rf_model = joblib.load('models/random_forest.pkl')
-        rf_scaler = joblib.load('models/scaler_rf.pkl')
+        rf_model = joblib.load('/home/maria_alice/TCC/models/random_forest.pkl')
+        rf_scaler = joblib.load('/home/maria_alice/TCC/models/scaler_rf.pkl')
         
         # Rede Neural
-        rna_model = joblib.load('models/rede_neural.pkl')
-        rna_scaler = joblib.load('models/scaler_rna.pkl')
+        rna_model = joblib.load('/home/maria_alice/TCC/models/rede_neural.pkl')
+        rna_scaler = joblib.load('/home/maria_alice/TCC/models/scaler_rna.pkl')
     except FileNotFoundError as e:
         print(f"ERRO: Arquivo não encontrado. Verifique se todos os modelos foram salvos. Detalhe: {e}")
         return

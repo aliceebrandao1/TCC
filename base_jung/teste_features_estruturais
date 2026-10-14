@@ -1,0 +1,197 @@
+"""
+Módulo de Teste de Hipótese: Topologia Completa (Área, Distância Média e Homo/Heteroatômica MIC)
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+import ase.db
+import os
+import warnings
+
+warnings.filterwarnings("ignore")
+
+def avaliar_topologia_completa():
+    print("\n" + "="*75)
+    print(" TESTE DE HIPÓTESE: TOPOLOGIA COMPLETA (4 NOVAS FEATURES ESTRUTURAIS) ")
+    print("="*75)
+
+    caminho_composicionais = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+    caminho_c2db_bruto = '/home/maria_alice/TCC/database/c2db-2022-11-30.db' 
+    
+    if not os.path.isfile(caminho_composicionais):
+        print(f"ERRO: Arquivo composicional não encontrado em:\n{caminho_composicionais}")
+        return
+
+    df_comp = pd.read_csv(caminho_composicionais)
+
+    if not os.path.isfile(caminho_c2db_bruto):
+        print(f"ERRO CRÍTICO: Arquivo .db não encontrado em:\n{caminho_c2db_bruto}")
+        return
+
+    print("1. Extraindo dados do ASE e calculando matrizes topológicas...")
+    
+    dados_estruturais = []
+    try:
+        with ase.db.connect(caminho_c2db_bruto) as db:
+            for row in db.select():
+                
+                # --- CÁLCULO 1: Área por Átomo ---
+                area = row.key_value_pairs.get('area')
+                if area is None and row.cell is not None:
+                    try:
+                        area = np.linalg.norm(np.cross(row.cell[0], row.cell[1]))
+                    except:
+                        area = None
+
+                area_por_atomo = (area / row.natoms) if (area is not None and row.natoms > 0) else None
+
+                # --- CÁLCULOS 2, 3 e 4: Distâncias (Média Global, Homoatômica e Heteroatômica) ---
+                dist_media_global = None
+                menor_dist_homo = None
+                menor_dist_hetero = 0 # 0 por padrão para materiais puros elementares
+                
+                try:
+                    atoms = row.toatoms()
+                    
+                    if len(atoms) > 1:
+                        # Calcula a matriz de distâncias respeitando a Convenção de Imagem Mínima (MIC)
+                        dist_matrix = atoms.get_all_distances(mic=True)
+                        np.fill_diagonal(dist_matrix, np.inf)
+                        
+                        # Feature 2: Distância média global (do primeiro vizinho de cada átomo)
+                        dist_media_global = np.mean(np.min(dist_matrix, axis=1))
+                        
+                        # Separação por espécies (número atômico)
+                        num_atomicos = atoms.get_atomic_numbers()
+                        mask_homo = (num_atomicos[:, None] == num_atomicos)
+                        mask_hetero = (num_atomicos[:, None] != num_atomicos)
+                        
+                        # Feature 3: Menor distância homoatômica (A-A ou B-B)
+                        if np.any(mask_homo & (dist_matrix != np.inf)):
+                            dist_homo_validas = np.where(mask_homo, dist_matrix, np.inf)
+                            menor_dist_homo = np.min(dist_homo_validas)
+                        else:
+                            # Se a célula for muito pequena e não tiver dois átomos iguais, mede a distância da rede
+                            menor_dist_homo = min(atoms.cell.lengths()[:2])
+                            
+                        # Feature 4: Menor distância heteroatômica (A-B)
+                        if np.any(mask_hetero):
+                            dist_hetero_validas = np.where(mask_hetero, dist_matrix, np.inf)
+                            menor_dist_hetero = np.min(dist_hetero_validas)
+                            
+                    elif len(atoms) == 1:
+                        # Célula unitária com 1 átomo: o vizinho mais próximo é sua réplica periódica na malha
+                        param_rede = min(atoms.cell.lengths()[:2])
+                        dist_media_global = param_rede
+                        menor_dist_homo = param_rede
+                        menor_dist_hetero = 0
+                        
+                except Exception as e:
+                    pass
+
+                dados_estruturais.append({
+                    'formula': row.formula,
+                    'area_por_atomo': area_por_atomo,
+                    'distancia_media_vizinhos_mic': dist_media_global,
+                    'dist_min_homoatomica': menor_dist_homo,
+                    'dist_min_heteroatomica': menor_dist_hetero
+                })
+    except Exception as e:
+        print(f"ERRO ao ler o arquivo ASE: {e}")
+        return
+
+    df_bruto = pd.DataFrame(dados_estruturais)
+    df_bruto = df_bruto.dropna()
+    df_bruto_limpo = df_bruto.drop_duplicates(subset=['formula'])
+    
+    print("\n2. Cruzando dados composicionais com as variáveis topológicas...")
+    df = pd.merge(df_comp, df_bruto_limpo, on='formula', how='inner')
+    
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+    
+    print(f"-> Base consolidada com {len(features)} features (incluindo as 4 estruturais).\n")
+
+    X = df[features].fillna(0)
+    y = df[target]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    modelos = {
+        'Regressão Linear': LinearRegression(),
+        'Gradient Boosting': GradientBoostingRegressor(random_state=42),
+        'Random Forest': RandomForestRegressor(random_state=42),
+        'Rede Neural (MLP)': MLPRegressor(max_iter=1000, random_state=42)
+    }
+
+    resultados = []
+    importancias_rf = None
+    importancias_gb = None
+
+    print("3. Treinando os 4 modelos e calculando métricas...\n")
+
+    for nome, modelo in modelos.items():
+        modelo.fit(X_train_scaled, y_train)
+        pred = modelo.predict(X_test_scaled)
+        
+        r2 = r2_score(y_test, pred)
+        mae = mean_absolute_error(y_test, pred)
+        rmse = np.sqrt(mean_squared_error(y_test, pred))
+        
+        resultados.append({'Modelo': nome, 'R2': r2, 'MAE': mae, 'RMSE': rmse})
+        
+        if nome == 'Random Forest':
+            importancias_rf = modelo.feature_importances_
+        elif nome == 'Gradient Boosting':
+            importancias_gb = modelo.feature_importances_
+
+    df_resultados = pd.DataFrame(resultados).set_index('Modelo')
+    print("-" * 55)
+    print(f"{'MÉTRICAS DE DESEMPENHO (TOPOLOGIA COMPLETA)':^55}")
+    print("-" * 55)
+    print(df_resultados.to_markdown(floatfmt=".4f"))
+    print("-" * 55 + "\n")
+
+    os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig.suptitle('Impacto da Topologia (Área/Átomo, Distâncias Globais e por Espécie)', fontsize=14, weight='bold')
+
+    def plot_importancias(ax, importancias, titulo, cor_base):
+        df_imp = pd.DataFrame({'Feature': features, 'Importancia': importancias})
+        df_imp = df_imp.sort_values(by='Importancia', ascending=False).head(10)
+        
+        features_novas = ['area_por_atomo', 'distancia_media_vizinhos_mic', 
+                          'dist_min_homoatomica', 'dist_min_heteroatomica']
+        cores_barras = ['#d62728' if f in features_novas else cor_base for f in df_imp['Feature']]
+        
+        sns.barplot(x='Importancia', y='Feature', data=df_imp, ax=ax, palette=cores_barras)
+        ax.set_title(titulo, fontsize=12)
+        ax.set_xlabel('Importância Relativa')
+        ax.set_ylabel('')
+        ax.grid(axis='x', linestyle='--', alpha=0.6)
+
+    plot_importancias(axes[0], importancias_gb, 'Top 10 - Gradient Boosting\n(Features Topológicas a Vermelho)', '#ff7f50')
+    plot_importancias(axes[1], importancias_rf, 'Top 10 - Random Forest\n(Features Topológicas a Vermelho)', '#2ca02c')
+
+    plt.tight_layout()
+    caminho_figura = '/home/maria_alice/TCC/results/figures/teste_hipotese_topologia.png'
+    plt.savefig(caminho_figura, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"-> Gráfico de importâncias gerado em: '{caminho_figura}'")
+    print("="*75 + "\n")
+
+if __name__ == "__main__":
+    avaliar_topologia_completa()

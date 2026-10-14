@@ -1,0 +1,109 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import warnings
+
+warnings.filterwarnings("ignore")
+
+def gerar_painel_visual_melhorado():
+    print("\n" + "="*70)
+    print(" GERANDO PAINEL DE OUTLIERS (ESCALA SYMLOG E ALTA RESOLUÇÃO) ")
+    print("="*70)
+
+    caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+    
+    try:
+        df = pd.read_csv(caminho_dados)
+    except FileNotFoundError:
+        print(f"ERRO: Ficheiro de dados não encontrado em {caminho_dados}")
+        return
+
+    print("1. Calculando métricas estatísticas e isolando o Top 4...")
+    df_num = df.select_dtypes(include=[np.number])
+    
+    resumo = df_num.describe().T
+    media = resumo['mean']
+    std = resumo['std']
+    
+    # Cálculo vetorizado do Coeficiente de Variação
+    resumo['CV'] = np.where(media != 0, np.abs(std / media), 0.0)
+    resumo = resumo.sort_values(by='CV', ascending=False)
+    
+    top_4_features = resumo.head(4).index.tolist()
+
+    print("2. Desenhando os gráficos com transformação logarítmica simétrica...")
+    
+    # Configuração de estilo Seaborn para um aspeto mais académico e polido
+    sns.set_theme(style="whitegrid", rc={"axes.edgecolor": "black", "xtick.bottom": True, "ytick.left": True})
+    
+    fig, axes = plt.subplots(2, 2, figsize=(16, 13))
+    fig.suptitle('Impacto da Assimetria nas Features Composicionais (Escala SymLog)', 
+                 fontsize=17, y=0.96, weight='bold')
+    axes = axes.flatten()
+
+    # Cores distintas e vibrantes para cada quadro
+    cores_caixa = ['#4A90E2', '#F5A623', '#7ED321', '#D0021B']
+    cores_pontos = ['#003366', '#8A4800', '#2E5C00', '#660000']
+
+    for i, col in enumerate(top_4_features):
+        ax = axes[i]
+        dados_reais = df[col].dropna()
+
+        # O Boxplot agora tem contornos mais nítidos
+        sns.boxplot(y=dados_reais, ax=ax, color=cores_caixa[i], width=0.35, 
+                    boxprops=dict(alpha=0.7, edgecolor='black', linewidth=1.5),
+                    whiskerprops=dict(linewidth=1.5),
+                    capprops=dict(linewidth=1.5),
+                    medianprops=dict(color='black', linewidth=2))
+
+        # Stripplot com cores mais escuras para contraste e maior jitter para espalhar os materiais
+        amostra = dados_reais.sample(n=min(1200, len(dados_reais)), random_state=42)
+        sns.stripplot(y=amostra, ax=ax, color=cores_pontos[i], alpha=0.45, size=4, jitter=0.25)
+
+        # TRANSFORMAÇÃO CRÍTICA: Escala SymLog
+        # linthresh=0.01 define a zona linear ao redor de zero para evitar log(0)
+        ax.set_yscale('symlog', linthresh=0.01)
+
+        m_val = resumo.loc[col, 'mean']
+        s_val = resumo.loc[col, 'std']
+        max_val = resumo.loc[col, 'max']
+        cv_val = resumo.loc[col, 'CV']
+
+        titulo_curto = col if len(col) < 42 else col[:39] + "..."
+        ax.set_title(titulo_curto, fontsize=13, pad=12, weight='bold')
+        ax.set_ylabel("Valor da Feature (SymLog)", fontsize=11, weight='bold')
+        
+        # Grelha de fundo adaptada à nova escala logarítmica
+        ax.grid(axis='y', linestyle=':', alpha=0.7, which='both')
+
+        texto_estatistico = (
+            f"Média: {m_val:.2e}\n"
+            f"Desvio: {s_val:.2e}\n"
+            f"Máximo: {max_val:.2e}\n"
+            f"CV: {cv_val:.2f}"
+        )
+        
+        # Caixa estatística mais limpa e destacada
+        ax.text(0.96, 0.96, texto_estatistico, 
+                transform=ax.transAxes, 
+                fontsize=11, 
+                verticalalignment='top', 
+                horizontalalignment='right',
+                bbox=dict(boxstyle='square,pad=0.5', facecolor='#F8F9FA', alpha=0.9, edgecolor='black'))
+
+    plt.tight_layout(rect=[0, 0, 1, 0.94])
+
+    os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
+    caminho_figura = '/home/maria_alice/TCC/results/figures/analise_outliers_symlog.png'
+    
+    # Salvando em alta resolução com fundo branco (ideal para compilação LaTeX)
+    plt.savefig(caminho_figura, dpi=350, bbox_inches='tight', facecolor='white')
+    plt.close()
+
+    print(f"-> Concluído! A nova figura visualmente aprimorada foi salva em:\n   '{caminho_figura}'")
+    print("="*70 + "\n")
+
+if __name__ == "__main__":
+    gerar_painel_visual_melhorado()

@@ -1,0 +1,73 @@
+import pandas as pd
+import numpy as np
+import os
+
+# 1. Carregar as features do dataset original
+caminho_features = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+
+if os.path.exists(caminho_features):
+    df_feat = pd.read_csv(caminho_features)
+    
+    colunas_ignoradas = ['formula', 'formula_pretty', 'Family', 'hform', 'h_form', 'material_id']
+    colunas_numeric = [col for col in df_feat.columns if col not in colunas_ignoradas and np.issubdtype(df_feat[col].dtype, np.number)]
+    
+    estatisticas = []
+    
+    # 2. Analisar a dispersão de cada feature
+    for col in colunas_numeric:
+        v_min = df_feat[col].min()
+        v_max = df_feat[col].max()
+        v_mean = df_feat[col].mean()
+        v_std = df_feat[col].std()
+        amplitude = v_max - v_min
+        
+        # Coeficiente de Variação (Desvio Padrão / Média)
+        # Mede o quão localizada a variável está em relação ao seu próprio tamanho
+        cv = (v_std / abs(v_mean)) if v_mean != 0 else 0
+        
+        estatisticas.append({
+            'Feature': col,
+            'Mínimo': v_min,
+            'Máximo': v_max,
+            'Média': v_mean,
+            'Amplitude': amplitude,
+            'Desvio_Padrão': v_std,
+            'CV': cv
+        })
+        
+    df_stats = pd.DataFrame(estatisticas)
+    
+    # 3. Filtrar as variáveis "mortas" ou altamente localizadas
+    # Critério A: Constantes (Amplitude exata = 0)
+    features_constantes = df_stats[df_stats['Amplitude'] == 0]
+    
+    # Critério B: Quase Constantes (Amplitude muito baixa e Desvio Padrão tendendo a zero)
+    # Selecionamos aquelas com CV < 0.05 (ou seja, a variação é menor que 5% da média)
+    features_localizadas = df_stats[(df_stats['Amplitude'] > 0) & (df_stats['CV'] < 0.05)].sort_values(by='CV')
+    
+    print("==========================================================")
+    print("   RELATÓRIO DE REMOÇÃO DE DESCRITORES")
+    print("==========================================================\n")
+    
+    print(f"Total de features analisadas: {len(colunas_numeric)}")
+    
+    if len(features_constantes) > 0:
+        print(f"\n FEATURES CONSTANTES (Devem ser removidas IMEDIATAMENTE - Amplitude Zero):")
+        print(features_constantes[['Feature', 'Mínimo', 'Máximo']].to_string(index=False))
+    else:
+        print("\n Nenhuma feature é 100% constante (Amplitude = 0).")
+        
+    if len(features_localizadas) > 0:
+        print(f"\n FEATURES ALTAMENTE LOCALIZADAS (Candidatas à remoção - Variação < 5%):")
+        print("Estas variáveis têm os valores mínimos, máximos e médios quase no mesmo ponto.\n")
+        
+        df_print_loc = features_localizadas[['Feature', 'Mínimo', 'Média', 'Máximo', 'Desvio_Padrão']].round(4)
+        print(df_print_loc.to_string(index=False))
+    else:
+        print("\n Nenhuma feature sofre de variância criticamente baixa.")
+        
+    os.makedirs('results/tables', exist_ok=True)
+    df_stats.round(4).to_csv('TCC/results/tables/auditoria_variancia_features.csv', index=False)
+
+else:
+    print(f" Arquivo não encontrado: {caminho_features}")
