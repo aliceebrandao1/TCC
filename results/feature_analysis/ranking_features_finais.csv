@@ -1,77 +1,76 @@
 feature,mi_score_bruto
-MagpieData range Electronegativity,0.5275316871063476
-MagpieData range CovalentRadius,0.4074563772569242
-MagpieData mode MendeleevNumber,0.36903537652521123
-MagpieData mode Number,0.35363020491833774
-DemlData maximum FERE correction,0.3164132984705814
-MagpieData mode Electronegativity,0.31520244573447265
-MagpieData mode MeltingT,0.31481632242490853
-MagpieData maximum Electronegativity,0.30564505198531977
-MagpieData minimum MeltingT,0.29208614023335056
-MagpieData minimum Number,0.2809581847950948
-PymatgenData minimum velocity_of_sound,0.2302399337812453
-MagpieData minimum MendeleevNumber,0.22928813370802992
-MagpieData maximum MendeleevNumber,0.22700872146085782
-frac p valence electrons,0.22042904299547317
-MagpieData mean Electronegativity,0.21803092331438823
-DemlData range FERE correction,0.21202477537414133
-MagpieData avg_dev NpValence,0.21131223434757107
-DemlData mean heat_cap,0.2101126731985845
-DemlData range GGAU_Etot,0.20769457568720284
-PymatgenData std_dev block,0.2014973550285264
-DemlData minimum GGAU_Etot,0.19339860799187436
-MagpieData mode GSbandgap,0.19287266873915865
-MagpieData avg_dev NpUnfilled,0.19026224017950533
-DemlData minimum first_ioniz,0.18941026547391004
-DemlData minimum molar_vol,0.18852707266721414
-MagpieData maximum CovalentRadius,0.18603304339217885
-MagpieData maximum MeltingT,0.18432526231169533
-DemlData maximum GGAU_Etot,0.18174375041188862
-MagpieData avg_dev MendeleevNumber,0.17607004004433158
-MagpieData maximum GSbandgap,0.1756732201736635
-DemlData maximum heat_fusion,0.17464763492542446
-MagpieData maximum Number,0.16954281818094952
-2-norm,0.16515097429876313
-PymatgenData mean block,0.16394515404978582
-MagpieData mean NUnfilled,0.156578851917077
-DemlData minimum FERE correction,0.1563176442084715
-PymatgenData maximum thermal_conductivity,0.15628583269315133
-MagpieData maximum GSvolume_pa,0.15520019601657653
-MagpieData minimum NValence,0.15458317899479823
-MagpieData range Number,0.1520114946267226
-MagpieData mean MendeleevNumber,0.14175512842447358
-PymatgenData minimum coefficient_of_linear_thermal_expansion,0.13147670729893512
-PymatgenData mean velocity_of_sound,0.13040760779648153
-MagpieData mean Number,0.1303242774776754
-MagpieData mean GSvolume_pa,0.12452622705401684
-MagpieData mean MeltingT,0.12023513481430381
-PymatgenData minimum bulk_modulus,0.1093298503091491
-MagpieData maximum NdUnfilled,0.10698694544509779
-PymatgenData mean bulk_modulus,0.10528960252223296
-DemlData minimum heat_cap,0.10382009625226418
-PymatgenData maximum electrical_resistivity,0.09541150466322934
-DemlData maximum atom_radius,0.09249618360299783
-DemlData mean electric_pol,0.08740585298338832
-MagpieData range NValence,0.08069781546727839
-MagpieData range NdValence,0.07789526271827141
-MagpieData mode NpUnfilled,0.0770361359540157
-MagpieData range Row,0.07290359031437355
-MagpieData range NpValence,0.07212276889276303
-MagpieData maximum NdValence,0.0696879017324652
-MagpieData maximum NpUnfilled,0.0639257566013951
-MagpieData minimum NUnfilled,0.04404642332562703
-0-norm,0.03715323885598387
+MagpieData range Electronegativity,0.5274511277708731
+MagpieData range CovalentRadius,0.4082840546436062
+MagpieData mode MendeleevNumber,0.36925842195112146
+MagpieData mode Number,0.35377257497810577
+MagpieData mode MeltingT,0.31565556782789805
+MagpieData mode Electronegativity,0.31534618512153134
+DemlData maximum FERE correction,0.3151480432190432
+MagpieData maximum Electronegativity,0.30562085769958314
+MagpieData minimum MeltingT,0.29102784285843075
+MagpieData minimum Number,0.28050824461326584
+PymatgenData minimum velocity_of_sound,0.23039002689289045
+MagpieData minimum MendeleevNumber,0.2291305997392339
+MagpieData maximum MendeleevNumber,0.22688964551908963
+frac p valence electrons,0.22066399838923534
+MagpieData mean Electronegativity,0.21800750411449688
+DemlData range FERE correction,0.2134264483607673
+MagpieData avg_dev NpValence,0.2131206918849804
+DemlData mean heat_cap,0.21010286824034363
+DemlData range GGAU_Etot,0.2083194347864623
+PymatgenData std_dev block,0.1995762889356465
+DemlData minimum GGAU_Etot,0.19344759028820357
+MagpieData mode GSbandgap,0.19295241464634927
+MagpieData avg_dev NpUnfilled,0.1911790630444976
+DemlData minimum first_ioniz,0.18913736205640141
+DemlData minimum molar_vol,0.18897342840085063
+MagpieData maximum CovalentRadius,0.18592148378216944
+MagpieData maximum MeltingT,0.18407348479762398
+DemlData maximum GGAU_Etot,0.18183045504968254
+MagpieData avg_dev MendeleevNumber,0.1760870071575864
+MagpieData maximum GSbandgap,0.17514758121920382
+DemlData maximum heat_fusion,0.17434711451046248
+MagpieData maximum Number,0.1688920883430285
+2-norm,0.16478390083164385
+PymatgenData mean block,0.16377418667403854
+MagpieData mean NUnfilled,0.15694747312781843
+PymatgenData maximum thermal_conductivity,0.15673235085109916
+DemlData minimum FERE correction,0.15525453524932198
+MagpieData minimum NValence,0.15452344173614296
+MagpieData maximum GSvolume_pa,0.15432603011155654
+MagpieData range Number,0.15235944397126833
+MagpieData mean MendeleevNumber,0.1410921740954194
+PymatgenData minimum coefficient_of_linear_thermal_expansion,0.13249174488971782
+PymatgenData mean velocity_of_sound,0.13044200383293791
+MagpieData mean Number,0.1298944330549352
+MagpieData mean GSvolume_pa,0.12450834351434636
+MagpieData mean MeltingT,0.12024711692774837
+PymatgenData minimum bulk_modulus,0.10957980686917423
+MagpieData maximum NdUnfilled,0.10697481915801133
+PymatgenData mean bulk_modulus,0.10529181550174371
+DemlData minimum heat_cap,0.10454666909097954
+PymatgenData maximum electrical_resistivity,0.09534833820626476
+DemlData maximum atom_radius,0.09291609475519502
+DemlData mean electric_pol,0.08733108446252835
+MagpieData range NValence,0.08106949748138614
+MagpieData range NdValence,0.07768758413251531
+MagpieData mode NpUnfilled,0.07684583879750839
+MagpieData range Row,0.07270360466977888
+MagpieData range NpValence,0.07214051159401436
+MagpieData maximum NdValence,0.0697225799147696
+MagpieData maximum NpUnfilled,0.06398539250789526
+MagpieData minimum NUnfilled,0.044057472904677875
+0-norm,0.03721638793634163
 MagpieData minimum NsValence,0.02455558287653936
 MagpieData mode NsValence,0.023946582017426943
-MagpieData mode NdUnfilled,0.022501511937778718
+MagpieData mode NdUnfilled,0.022518776717992184
 MagpieData mode NsUnfilled,0.015303026133243192
+MagpieData maximum GSmagmom,0.014575506443212038
 PymatgenData range block,0.014570184647687334
-MagpieData minimum NpValence,0.014085786889104668
+MagpieData minimum NpValence,0.014089463801610691
 MagpieData maximum NsUnfilled,0.013579901059061594
-MagpieData maximum GSmagmom,0.013480112529596244
-MagpieData minimum GSbandgap,0.009666528689694864
+MagpieData minimum GSbandgap,0.009658816628046019
 MagpieData maximum NsValence,0.0070196609178506675
 PymatgenData maximum block,0.0034869951818379263
 MagpieData mode NfValence,0.001407926522562386
 MagpieData minimum NfValence,0.0012054858752132969
-PymatgenData minimum electrical_resistivity,0.0003972150717806988
