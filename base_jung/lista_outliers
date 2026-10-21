@@ -96,7 +96,7 @@ def main():
     plt.legend()
     plt.grid(axis='y', alpha=0.3)
     
-    plt.savefig('TCC/results/figures/comparativo_residuos_quarteto.png', dpi=300, bbox_inches='tight')
+    plt.savefig('/home/maria_alice/TCC/results/figures/comparativo_residuos_quarteto.png', dpi=300, bbox_inches='tight')
     plt.close()
     print("-> Gráfico de distribuição de erros salvo em 'results/figures/comparativo_residuos_quarteto.png'")
 
@@ -121,8 +121,8 @@ def main():
     
     tabela_outliers = outliers[colunas_finais].sort_values(by='erro_abs_RF', ascending=False)
     
-    os.makedirs('TCC/results/tables', exist_ok=True)
-    caminho_tabela = 'TCC/results/tables/lista_outliers_anomalias.csv'
+    os.makedirs('/home/maria_alice/TCC/results/tables', exist_ok=True)
+    caminho_tabela = '/home/maria_alice/TCC/results/tables/lista_outliers_anomalias.csv'
     tabela_outliers.to_csv(caminho_tabela, index=False)
     
     print(f"\n--- RELATÓRIO DE ANOMALIAS ---")

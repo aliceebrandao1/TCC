@@ -63,7 +63,7 @@ def executar_pipeline_gb(X, y, nome_etapa, n_estimators=150, learning_rate=0.1, 
         # Extrai os nomes das features dinamicamente do DataFrame X
         features = X.columns.tolist()
         
-        os.makedirs('TCC/results/figures', exist_ok=True)
+        os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
         # Gráfico 1: Real vs Previsto
@@ -86,12 +86,12 @@ def executar_pipeline_gb(X, y, nome_etapa, n_estimators=150, learning_rate=0.1, 
         axes[1].set_title('Top 10 Features Mais Preditivas no Modelo (GB)')
 
         plt.tight_layout()
-        plt.savefig('TCC/results/figures/gradient_boosting_resultados.png', dpi=300, bbox_inches='tight')
+        plt.savefig('/home/maria_alice/TCC/results/figures/gradient_boosting_resultados.png', dpi=300, bbox_inches='tight')
         plt.close()
         
-        os.makedirs('TCC/models', exist_ok=True)
-        joblib.dump(modelo, 'TCC/models/gradient_boosting.pkl')
-        joblib.dump(scaler, 'TCC/models/scaler_gb.pkl')
+        os.makedirs('/home/maria_alice/TCC/models', exist_ok=True)
+        joblib.dump(modelo, '/home/maria_alice/TCC/models/gradient_boosting.pkl')
+        joblib.dump(scaler, '/home/maria_alice/TCC/models/scaler_gb.pkl')
         print("\n-> Modelo, Scaler e Gráficos salvos com sucesso!")
 
 

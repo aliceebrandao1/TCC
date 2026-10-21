@@ -154,4 +154,4 @@ if __name__ == "__main__":
     mat_principal.report()
     
     mat_principal.df = mat_principal.df.drop(columns=['composition'])
-    mat_principal.save('data/c2db_featurizado_artigo', csv=True)
+    mat_principal.save('/home/maria_alice/data/c2db_featurizado_artigo', csv=True)

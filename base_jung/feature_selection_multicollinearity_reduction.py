@@ -27,7 +27,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 def main():
-    df = pd.read_csv('data/c2db_featurizado_artigo.csv')
+    df = pd.read_csv('/home/maria_alice/data/c2db_featurizado_artigo.csv')
     target = 'hform'
     # percorre o cabeçalho de todas as colunas da matriz e salva os nomes na lista features. se o nome da coluna for a variável alvo (hform) ou a variável de texto estequiométrico (formula), essa coluna é bloqueada e não entra na lista
     features = [col for col in df.columns if col not in [target, 'formula']] 
@@ -75,9 +75,9 @@ def main():
     plt.title("Dendrograma de Features (Distância de Ward)")
     plt.ylabel("Distância")
     plt.tight_layout()
-    plt.savefig('results/figures/dendrograma_features.png', dpi=300)
+    plt.savefig('/home/maria_alice/TCC/results/figures/dendrograma_features.png', dpi=300)
     plt.close()
-    print("Dendrograma salvo em: results/figures/dendrograma_features.png")
+    print("Dendrograma salvo em: /home/maria_alice/TCC/results/figures/dendrograma_features.png")
 
     threshold_linkage = 1.5
     cluster_ids = hierarchy.fcluster(corr_linkage, t=threshold_linkage, criterion='distance')
@@ -123,8 +123,8 @@ def main():
     os.makedirs('data', exist_ok=True)
     colunas_finais = ['formula', target] + features_v4
     df_limpo = df[colunas_finais]
-    df_limpo.to_csv('data/c2db_features_selecionadas.csv', index=False)
-    print(f"Dataset limpo salvo em: data/c2db_features_selecionadas.csv")
+    df_limpo.to_csv('/home/maria_alice/TCC/data/c2db_features_selecionadas.csv', index=False)
+    print(f"Dataset limpo salvo em: /home/maria_alice/TCC/data/c2db_features_selecionadas.csv")
 
     # ETAPA 4: Análise F-Test (Correlação Linear)
     print("\n--- ETAPA 4: F-Test (Correlação Linear) ---")
@@ -140,9 +140,9 @@ def main():
     scaler = MinMaxScaler()
     df_f_test['f_score_scaled'] = scaler.fit_transform(df_f_test[['f_score']])
 
-    os.makedirs('results/feature_analysis', exist_ok=True)
-    df_f_test.to_csv('results/feature_analysis/f_test_result_hform.csv', index=False)
-    print("Resultado salvo em: results/feature_analysis/f_test_result_hform.csv")
+    os.makedirs('/home/maria_alice/TCC/results/feature_analysis', exist_ok=True)
+    df_f_test.to_csv('/home/maria_alice/TCC/results/feature_analysis/f_test_result_hform.csv', index=False)
+    print("Resultado salvo em: /home/maria_alice/TCC/results/feature_analysis/f_test_result_hform.csv")
 
     print("\nTop 10 Features (Relação Linear - F-Test):")
     print(df_f_test[['feature', 'f_score_scaled']].head(10).to_string(index=True))
@@ -165,12 +165,12 @@ def main():
     # Ordena com base puramente na teoria da informação
     df_ranking = df_ranking.sort_values(by='mi_score_bruto', ascending=False).reset_index(drop=True)
 
-    os.makedirs('results/feature_analysis', exist_ok=True)
-    df_ranking.to_csv('results/feature_analysis/ranking_features_finais.csv', index=False)
+    os.makedirs('/home/maria_alice/TCC/results/feature_analysis', exist_ok=True)
+    df_ranking.to_csv('/home/maria_alice/TCC/results/feature_analysis/ranking_features_finais.csv', index=False)
 
     print("\nTop 10 Features Mais Importantes:")
     print(df_ranking.head(10).to_string(index=True))
-    print("\nRanking completo salvo em: results/feature_analysis/ranking_features_finais.csv")
+    print("\nRanking completo salvo em: /home/maria_alice/TCC/results/feature_analysis/ranking_features_finais.csv")
 
 
     print("\n" + "="*65)

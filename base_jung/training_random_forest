@@ -58,7 +58,7 @@ def executar_pipeline_rf(X, y, nome_etapa, n_estimators=150, max_depth=15, salva
     if salvar_modelo:
         features = X.columns.tolist()
         
-        os.makedirs('TCC/results/figures', exist_ok=True)
+        os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
         # Gráfico 1: Real vs Previsto
@@ -84,9 +84,9 @@ def executar_pipeline_rf(X, y, nome_etapa, n_estimators=150, max_depth=15, salva
         plt.savefig('TCC/results/figures/random_forest_resultados.png', dpi=300, bbox_inches='tight')
         plt.close()
         
-        os.makedirs('TCC/models', exist_ok=True)
-        joblib.dump(modelo, 'TCC/models/random_forest.pkl')
-        joblib.dump(scaler, 'TCC/models/scaler_rf.pkl')
+        os.makedirs('/home/maria_alice/TCC/models', exist_ok=True)
+        joblib.dump(modelo, '/home/maria_alice/TCC/models/random_forest.pkl')
+        joblib.dump(scaler, '/home/maria_alice/TCC/models/scaler_rf.pkl')
         print("\n-> Modelo, Scaler e Gráficos salvos com sucesso!")
 
 
