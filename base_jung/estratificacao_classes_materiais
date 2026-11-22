@@ -162,9 +162,11 @@ def main():
     print("Gerando painel gráfico de estratificação...")
     os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
     
-    # Aumentado o figsize para acomodar o maior número de classes
-    fig, axes = plt.subplots(2, 2, figsize=(16, 15), sharex=True)
-    fig.suptitle('Estratificação do Erro Absoluto Médio (MAE) por Família de Material 2D Refinada', fontsize=16, y=0.93)
+    fig, axes = plt.subplots(2, 2, figsize=(13.5, 11.5), sharex=True)
+    fig.suptitle(
+        'Estratificação do Erro Absoluto Médio (MAE) por Família de Material 2D Refinada',
+        fontsize=17, fontweight='bold', y=0.96
+    )
 
     configs_grafico = [
         (axes[0, 0], 'MAE_LR', 'Regressão Linear', '#5B86E5'),
@@ -173,29 +175,40 @@ def main():
         (axes[1, 1], 'MAE_RNA', 'Rede Neural', '#d62728')
     ]
 
+    # Define limite máximo com folga para os rótulos (n=...) não cortarem na borda
+    max_mae = resumo[['MAE_LR', 'MAE_GB', 'MAE_RF', 'MAE_RNA']].max().max()
+
     for ax, coluna_erro, titulo, cor in configs_grafico:
-        barras = ax.barh(resumo['Classe'], resumo[coluna_erro], color=cor, edgecolor='black', alpha=0.8)
-        ax.set_title(titulo, fontsize=14)
-        ax.grid(axis='x', linestyle='--', alpha=0.6)
+        barras = ax.barh(
+            resumo['Classe'], resumo[coluna_erro],
+            color=cor, edgecolor='white', linewidth=0.6, alpha=0.88
+        )
+        ax.set_title(titulo, fontsize=15, pad=10)
+        ax.set_xlim(0, max_mae * 1.22)
+        ax.grid(axis='x', linestyle=':', alpha=0.5)
+        ax.tick_params(axis='x', labelsize=12)
+        ax.tick_params(axis='y', labelsize=11.5)
         
         if ax in [axes[0, 1], axes[1, 1]]:
-            ax.set_yticklabels([])
+            ax.tick_params(axis='y', labelleft=False)
             
         for barra, qtde in zip(barras, resumo['Quantidade']):
-            ax.text(barra.get_width() + 0.01, barra.get_y() + barra.get_height()/2, 
-                    f"(n={qtde})", va='center', fontsize=9, color='gray')
+            ax.text(
+                barra.get_width() + max_mae * 0.015,
+                barra.get_y() + barra.get_height() / 2,
+                f"(n={qtde})", va='center', fontsize=10.5, color='#444444'
+            )
 
-    axes[1, 0].set_xlabel('Erro Absoluto Médio (MAE) (eV/átomo)', fontsize=12)
-    axes[1, 1].set_xlabel('Erro Absoluto Médio (MAE) (eV/átomo)', fontsize=12)
+    axes[1, 0].set_xlabel('Erro Absoluto Médio (MAE) (eV/átomo)', fontsize=13.5, labelpad=8)
+    axes[1, 1].set_xlabel('Erro Absoluto Médio (MAE) (eV/átomo)', fontsize=13.5, labelpad=8)
 
-    plt.subplots_adjust(wspace=0.05, hspace=0.15)
+    plt.subplots_adjust(wspace=0.06, hspace=0.16, top=0.91)
     
     caminho_figura = '/home/maria_alice/TCC/results/figures/painel_estratificacao_refinada.png'
-    plt.savefig(caminho_figura, dpi=300, bbox_inches='tight')
+    plt.savefig(caminho_figura, dpi=600, bbox_inches='tight')
     plt.close()
     
     print(f"-> Painel comparativo salvo com sucesso em '{caminho_figura}'")
     print("="*70 + "\n")
-
 if __name__ == "__main__":
     main()

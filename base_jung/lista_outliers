@@ -77,28 +77,36 @@ def main():
     df_test['pred_RNA'] = rna_model.predict(X_test_rna)
     df_test['erro_abs_RNA'] = np.abs(df_test['hform'] - df_test['pred_RNA'])
 
-    # VISUALIZAÇÃO DA DISTRIBUIÇÃO DOS ERROS
-    os.makedirs('TCC/results/figures', exist_ok=True)
-    plt.figure(figsize=(12, 7))
-    
-    # Plotando os histogramas sobrepostos
-    plt.hist(df_test['erro_abs_LR'], bins=50, alpha=0.4, label='Regressão Linear', color='#5B86E5')
-    plt.hist(df_test['erro_abs_GB'], bins=50, alpha=0.4, label='Gradient Boosting', color='#ff7f50')
-    plt.hist(df_test['erro_abs_RF'], bins=50, alpha=0.4, label='Random Forest', color='#2ca02c')
-    plt.hist(df_test['erro_abs_RNA'], bins=50, alpha=0.4, label='Rede Neural', color='#d62728')
-    
-    plt.xlabel('Erro Absoluto ($|h_{form\_real} - h_{form\_previsto}|$) (eV/átomo)')
-    plt.ylabel('Frequência (Quantidade de Materiais)')
-    plt.title('Distribuição Comparativa de Erros Residuais (Quarteto)')
+   # VISUALIZAÇÃO DA DISTRIBUIÇÃO DOS ERROS
+    os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
+    fig, ax = plt.subplots(figsize=(10, 5.5))
     
     colunas_erros = ['erro_abs_LR', 'erro_abs_GB', 'erro_abs_RF', 'erro_abs_RNA']
-    plt.xlim(0, df_test[colunas_erros].max().max())
-    plt.legend()
-    plt.grid(axis='y', alpha=0.3)
+    max_erro = df_test[colunas_erros].max().max()
+    bins_comuns = np.linspace(0, max_erro, 55)
+
+    # Plotando os histogramas sobrepostos com intervalos idênticos
+    ax.hist(df_test['erro_abs_LR'], bins=bins_comuns, alpha=0.42, label='Regressão Linear', color='#5B86E5')
+    ax.hist(df_test['erro_abs_GB'], bins=bins_comuns, alpha=0.42, label='Gradient Boosting', color='#ff7f50')
+    ax.hist(df_test['erro_abs_RF'], bins=bins_comuns, alpha=0.42, label='Random Forest', color='#2ca02c')
+    ax.hist(df_test['erro_abs_RNA'], bins=bins_comuns, alpha=0.42, label='Rede Neural', color='#d62728')
     
-    plt.savefig('/home/maria_alice/TCC/results/figures/comparativo_residuos_quarteto.png', dpi=300, bbox_inches='tight')
+    ax.set_xlabel(r'Erro Absoluto ($|h_{\mathrm{form, real}} - h_{\mathrm{form, previsto}}|$) (eV/átomo)', fontsize=14)
+    ax.set_ylabel('Frequência (Quantidade de Materiais)', fontsize=14)
+    ax.set_title('Distribuição Comparativa de Erros Absolutos por Modelo', fontsize=15, pad=12)
+    
+    ax.set_xlim(0, max_erro)
+    ax.tick_params(axis='both', labelsize=12)
+    ax.legend(fontsize=12, frameon=True)
+    ax.grid(axis='y', linestyle=':', alpha=0.5)
+    
+    plt.tight_layout()
+    plt.savefig(
+        '/home/maria_alice/TCC/results/figures/comparativo_residuos_quarteto.png',
+        dpi=600, bbox_inches='tight'
+    )
     plt.close()
-    print("-> Gráfico de distribuição de erros salvo em 'results/figures/comparativo_residuos_quarteto.png'")
+    print("-> Gráfico de distribuição de erros salvo em '/home/maria_alice/TCC/results/figures/comparativo_residuos_quarteto.png'")
 
     # EXTRAÇÃO DOS OUTLIERS
     limite_erro = 0.50 # eV/átomo

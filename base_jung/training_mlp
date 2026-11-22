@@ -63,32 +63,48 @@ def executar_pipeline_rna(X, y, nome_etapa, max_iter=1000, salvar_modelo=False):
     print(f"R² CV (5-Fold): {cv_scores.mean():.4f}")
 
     if salvar_modelo:
-        os.makedirs('results/figures', exist_ok=True)
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
+        fig, axes = plt.subplots(1, 2, figsize=(11, 4.8))
 
-        axes[0].scatter(y_test, y_pred, alpha=0.5, s=15, color='#9467bd', edgecolors='white', linewidth=0.3)
+        # Gráfico 1: Real vs Previsto
+        axes[0].scatter(
+            y_test, y_pred, alpha=0.5, s=18,
+            color='#9467bd', edgecolors='white', linewidth=0.3
+        )
         lim_min = min(y_test.min(), y_pred.min())
         lim_max = max(y_test.max(), y_pred.max())
-        axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
-        axes[0].set_xlabel('hform Real')
-        axes[0].set_ylabel('hform Previsto')
-        axes[0].set_title(f'Rede Neural — R² = {r2:.4f}')
-        axes[0].legend()
+        axes[0].plot(
+            [lim_min, lim_max], [lim_min, lim_max],
+            'r--', linewidth=2.0, label='Previsão Perfeita'
+        )
+        axes[0].set_xlabel(r'$h_{\mathrm{form}}$ Real (eV/átomo)', fontsize=14)
+        axes[0].set_ylabel(r'$h_{\mathrm{form}}$ Previsto (eV/átomo)', fontsize=14)
+        axes[0].set_title(f'Rede Neural — $R^2$ = {r2:.4f}', fontsize=15, pad=10)
+        axes[0].legend(fontsize=12, frameon=True)
+        axes[0].tick_params(axis='both', labelsize=12)
+        axes[0].grid(True, linestyle=':', alpha=0.5)
 
-        axes[1].plot(modelo.loss_curve_, color='#d62728', linewidth=2)
-        axes[1].set_xlabel('Épocas (Iterações)')
-        axes[1].set_ylabel('Função de Custo (Loss)')
-        axes[1].set_title('Convergência do Erro')
+        # Gráfico 2: Convergência do Erro
+        axes[1].plot(modelo.loss_curve_, color='#d62728', linewidth=2.2)
+        axes[1].set_xlabel('Épocas (Iterações)', fontsize=14)
+        axes[1].set_ylabel('Função de Custo (Loss)', fontsize=14)
+        axes[1].set_title('Convergência do Erro', fontsize=15, pad=10)
+        axes[1].tick_params(axis='both', labelsize=12)
+        axes[1].grid(True, linestyle=':', alpha=0.5)
 
-        plt.tight_layout()
-        plt.savefig('/home/maria_alice/TCC/results/figures/rede_neural_resultados.png', dpi=300, bbox_inches='tight')
+        plt.tight_layout(pad=2.0)
+        plt.savefig(
+            '/home/maria_alice/TCC/results/figures/rede_neural_resultados.png',
+            dpi=600, bbox_inches='tight'
+        )
         plt.close()
         
-        os.makedirs('models', exist_ok=True)
+        os.makedirs('/home/maria_alice/TCC/models', exist_ok=True)
         joblib.dump(modelo, '/home/maria_alice/TCC/models/rede_neural.pkl')
         joblib.dump(scaler, '/home/maria_alice/TCC/models/scaler_rna.pkl')
-        print("\n Modelo, Scaler e Gráficos salvos com sucesso!")
+        print("\n-> Modelo, Scaler e Gráficos salvos com sucesso!")
 
+        
 def main():
 
     # ETAPA 1: CALIBRAÇÃO

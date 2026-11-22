@@ -165,29 +165,45 @@ def avaliar_topologia_completa():
     print("-" * 55 + "\n")
 
     os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-    fig.suptitle('Impacto da Topologia (Área/Átomo, Distâncias Globais e por Espécie)', fontsize=14, weight='bold')
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.6))
+    fig.suptitle(
+        'Impacto da Topologia (Área/Átomo, Distâncias Globais e por Espécie)',
+        fontsize=16, fontweight='bold', y=0.98
+    )
 
     def plot_importancias(ax, importancias, titulo, cor_base):
         df_imp = pd.DataFrame({'Feature': features, 'Importancia': importancias})
         df_imp = df_imp.sort_values(by='Importancia', ascending=False).head(10)
         
-        features_novas = ['area_por_atomo', 'distancia_media_vizinhos_mic', 
-                          'dist_min_homoatomica', 'dist_min_heteroatomica']
+        features_novas = [
+            'area_por_atomo', 'distancia_media_vizinhos_mic',
+            'dist_min_homoatomica', 'dist_min_heteroatomica'
+        ]
         cores_barras = ['#d62728' if f in features_novas else cor_base for f in df_imp['Feature']]
         
-        sns.barplot(x='Importancia', y='Feature', data=df_imp, ax=ax, palette=cores_barras)
-        ax.set_title(titulo, fontsize=12)
-        ax.set_xlabel('Importância Relativa')
+        sns.barplot(
+            x='Importancia', y='Feature', data=df_imp,
+            ax=ax, palette=cores_barras, edgecolor='white', linewidth=0.5
+        )
+        ax.set_title(titulo, fontsize=14, pad=10)
+        ax.set_xlabel('Importância Relativa', fontsize=13.5)
         ax.set_ylabel('')
-        ax.grid(axis='x', linestyle='--', alpha=0.6)
+        ax.tick_params(axis='x', labelsize=12)
+        ax.tick_params(axis='y', labelsize=11.5)
+        ax.grid(axis='x', linestyle=':', alpha=0.5)
 
-    plot_importancias(axes[0], importancias_gb, 'Top 10 - Gradient Boosting\n(Features Topológicas a Vermelho)', '#ff7f50')
-    plot_importancias(axes[1], importancias_rf, 'Top 10 - Random Forest\n(Features Topológicas a Vermelho)', '#2ca02c')
+    plot_importancias(
+        axes[0], importancias_gb,
+        'Top 10 — Gradient Boosting\n(Features Topológicas em Vermelho)', '#ff7f50'
+    )
+    plot_importancias(
+        axes[1], importancias_rf,
+        'Top 10 — Random Forest\n(Features Topológicas em Vermelho)', '#2ca02c'
+    )
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.93], w_pad=2.5)
     caminho_figura = '/home/maria_alice/TCC/results/figures/teste_hipotese_topologia.png'
-    plt.savefig(caminho_figura, dpi=300, bbox_inches='tight')
+    plt.savefig(caminho_figura, dpi=600, bbox_inches='tight')
     plt.close()
     
     print(f"-> Gráfico de importâncias gerado em: '{caminho_figura}'")

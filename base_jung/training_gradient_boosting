@@ -60,33 +60,47 @@ def executar_pipeline_gb(X, y, nome_etapa, n_estimators=150, learning_rate=0.1, 
 
     # 4. Salvamento Condicional e Gráficos (Apenas para os dados reais)
     if salvar_modelo:
-        # Extrai os nomes das features dinamicamente do DataFrame X
         features = X.columns.tolist()
         
         os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        fig, axes = plt.subplots(1, 2, figsize=(12.5, 5.2))
 
-        # Gráfico 1: Real vs Previsto
-        axes[0].scatter(y_test, y_pred, alpha=0.5, s=15, color='#ff7f50', edgecolors='white', linewidth=0.3)
+        axes[0].scatter(
+            y_test, y_pred, alpha=0.5, s=18,
+            color='#ff7f50', edgecolors='white', linewidth=0.3
+        )
         lim_min = min(y_test.min(), y_pred.min())
         lim_max = max(y_test.max(), y_pred.max())
-        axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
-        axes[0].set_xlabel('hform Real (eV/átomo)')
-        axes[0].set_ylabel('hform Previsto (eV/átomo)')
-        axes[0].set_title(f'Gradient Boosting — R² = {r2:.4f}')
-        axes[0].legend()
+        axes[0].plot(
+            [lim_min, lim_max], [lim_min, lim_max],
+            'r--', linewidth=2.0, label='Previsão Perfeita'
+        )
+        axes[0].set_xlabel(r'$h_{\mathrm{form}}$ Real (eV/átomo)', fontsize=14)
+        axes[0].set_ylabel(r'$h_{\mathrm{form}}$ Previsto (eV/átomo)', fontsize=14)
+        axes[0].set_title(f'Gradient Boosting — $R^2$ = {r2:.4f}', fontsize=15, pad=10)
+        axes[0].legend(fontsize=12, frameon=True)
+        axes[0].tick_params(axis='both', labelsize=12)
+        axes[0].grid(True, linestyle=':', alpha=0.5)
 
-        # Gráfico 2: Importância das Features
         importancias = modelo.feature_importances_
         df_imp = pd.DataFrame({'feature': features, 'importancia': importancias})
         df_imp = df_imp.sort_values(by='importancia', ascending=True).tail(10)
         
-        axes[1].barh(df_imp['feature'], df_imp['importancia'], color='#20b2aa')
-        axes[1].set_xlabel('Importância Relativa')
-        axes[1].set_title('Top 10 Features Mais Preditivas no Modelo (GB)')
+        axes[1].barh(
+            df_imp['feature'], df_imp['importancia'],
+            color='#20b2aa', edgecolor='white', linewidth=0.5
+        )
+        axes[1].set_xlabel('Importância Relativa', fontsize=14)
+        axes[1].set_title('Top 10 Features Mais Preditivas (GB)', fontsize=15, pad=10)
+        axes[1].tick_params(axis='x', labelsize=12)
+        axes[1].tick_params(axis='y', labelsize=11)
+        axes[1].grid(True, axis='x', linestyle=':', alpha=0.5)
 
-        plt.tight_layout()
-        plt.savefig('/home/maria_alice/TCC/results/figures/gradient_boosting_resultados.png', dpi=300, bbox_inches='tight')
+        plt.tight_layout(pad=2.0)
+        plt.savefig(
+            '/home/maria_alice/TCC/results/figures/gradient_boosting_resultados.png',
+            dpi=600, bbox_inches='tight'
+        )
         plt.close()
         
         os.makedirs('/home/maria_alice/TCC/models', exist_ok=True)
@@ -94,7 +108,7 @@ def executar_pipeline_gb(X, y, nome_etapa, n_estimators=150, learning_rate=0.1, 
         joblib.dump(scaler, '/home/maria_alice/TCC/models/scaler_gb.pkl')
         print("\n-> Modelo, Scaler e Gráficos salvos com sucesso!")
 
-
+        
 def main():
     # ==========================================
     # ETAPA 1: CALIBRAÇÃO (Superfície Curva)

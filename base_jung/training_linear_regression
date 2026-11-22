@@ -57,28 +57,33 @@ def executar_pipeline_lr(X, y, nome_etapa, salvar_modelo=False):
 
     if salvar_modelo:
         os.makedirs('/home/maria_alice/TCC/results/figures', exist_ok=True)
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        fig, axes = plt.subplots(1, 2, figsize=(11, 4.8))
 
-        # Gráfico 1: Real vs Previsto
-        axes[0].scatter(y_test, y_pred, alpha=0.4, s=15, color='#5B86E5', edgecolors='white', linewidth=0.3)
+        axes[0].scatter(y_test, y_pred, alpha=0.45, s=18,color='#5B86E5', edgecolors='white', linewidth=0.3)
         lim_min = min(y_test.min(), y_pred.min())
         lim_max = max(y_test.max(), y_pred.max())
-        axes[0].plot([lim_min, lim_max], [lim_min, lim_max], 'r--', linewidth=1.5, label='Previsão Perfeita')
-        axes[0].set_xlabel('hform Real (eV/átomo)')
-        axes[0].set_ylabel('hform Previsto (eV/átomo)')
-        axes[0].set_title(f'Regressão Linear — R² = {r2:.4f}')
-        axes[0].legend()
+        axes[0].plot([lim_min, lim_max], [lim_min, lim_max],'r--', linewidth=2.0, label='Previsão Perfeita')
+        axes[0].set_xlabel(r'$h_{\mathrm{form}}$ Real (eV/átomo)', fontsize=14)
+        axes[0].set_ylabel(r'$h_{\mathrm{form}}$ Previsto (eV/átomo)', fontsize=14)
+        axes[0].set_title(f'Regressão Linear — $R^2$ = {r2:.4f}', fontsize=15, pad=10)
+        axes[0].legend(fontsize=12, frameon=True)
+        axes[0].tick_params(axis='both', labelsize=12)
+        axes[0].grid(True, linestyle=':', alpha=0.5)
 
-        # Gráfico 2: Distribuição dos Resíduos
         residuos = y_test - y_pred
         axes[1].hist(residuos, bins=60, color='#36D1DC', edgecolor='white', alpha=0.85)
-        axes[1].axvline(0, color='red', linestyle='--', linewidth=1.5)
-        axes[1].set_xlabel('Resíduo (Real - Previsto) (eV/átomo)')
-        axes[1].set_ylabel('Frequência')
-        axes[1].set_title(f'Distribuição dos Resíduos — MAE = {mae:.4f}')
+        axes[1].axvline(0, color='red', linestyle='--', linewidth=2.0)
+        axes[1].set_xlabel('Resíduo (Real - Previsto) (eV/átomo)', fontsize=14)
+        axes[1].set_ylabel('Frequência', fontsize=14)
+        axes[1].set_title(f'Distribuição dos Resíduos — MAE = {mae:.4f}', fontsize=15, pad=10)
+        axes[1].tick_params(axis='both', labelsize=12)
+        axes[1].grid(True, axis='y', linestyle=':', alpha=0.5)
 
-        plt.tight_layout()
-        plt.savefig('/home/maria_alice/TCC/results/figures/regressao_linear_resultados.png', dpi=300, bbox_inches='tight')
+        plt.tight_layout(pad=2.0)
+        plt.savefig(
+            '/home/maria_alice/TCC/results/figures/regressao_linear_resultados.png',
+            dpi=600, bbox_inches='tight'
+        )
         plt.close()
         
         os.makedirs('/home/maria_alice/TCC/models', exist_ok=True)
