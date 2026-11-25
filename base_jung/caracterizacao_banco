@@ -1,0 +1,216 @@
+"""
+Caracterização Exploratória do Banco de Dados (C2DB Featurizado)
+Estatísticas descritivas do alvo (hform) e distribuição por classes químicas
+"""
+
+import os
+import warnings
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pymatgen.core import Composition
+
+warnings.filterwarnings("ignore")
+
+FIG_DIR = '/home/maria_alice/TCC/results/figures'
+TAB_DIR = '/home/maria_alice/TCC/results/tables'
+os.makedirs(FIG_DIR, exist_ok=True)
+os.makedirs(TAB_DIR, exist_ok=True)
+DPI = 600
+
+
+def classificar_familia_2d(formula_str):
+    """Mesma classificação refinada usada na estratificação de erros."""
+    try:
+        comp = Composition(formula_str)
+        elementos = [el.symbol for el in comp.elements]
+        num_elementos = len(elementos)
+    except Exception:
+        return 'Fórmula Inválida'
+
+    metais_transicao = [
+        'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+        'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+        'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg'
+    ]
+    calcogenios = ['S', 'Se', 'Te']
+    halogenios = ['F', 'Cl', 'Br', 'I']
+    ametais_cnb = ['C', 'N', 'B']
+
+    tem_metal = any(el in metais_transicao for el in elementos)
+    tem_calcogenio = any(el in calcogenios for el in elementos)
+    tem_halogenio = any(el in halogenios for el in elementos)
+    tem_oxigenio = 'O' in elementos
+    tem_cnb = any(el in ametais_cnb for el in elementos)
+
+    if num_elementos == 1:
+        return 'Monoelementares'
+
+    if tem_halogenio and tem_metal:
+        if num_elementos == 2:
+            return 'Haletos com MT (Binários)'
+        elif tem_calcogenio:
+            return 'Calco-haletos com MT'
+        elif tem_oxigenio:
+            return 'Oxialetos com MT'
+        else:
+            return 'Haletos com MT (Janus/Mistos)'
+
+    if tem_halogenio and tem_calcogenio:
+        if num_elementos == 2:
+            return 'Haletos c/ Calcogênios (Binários)'
+        else:
+            return 'Haletos c/ Calcogênios (Multicomp.)'
+
+    if tem_metal and tem_calcogenio:
+        if num_elementos == 2:
+            return 'TMDs Clássicos (Binários)'
+        else:
+            return 'TMDs Janus / Ligas (Ternários+)'
+
+    if num_elementos == 2:
+        if tem_oxigenio:
+            return 'Óxidos Binários'
+        elif tem_cnb:
+            return 'Carbetos/Nitretos/Boretos (Binários)'
+        else:
+            return 'Outros Binários'
+
+    if tem_oxigenio:
+        return 'Óxidos Multicomp. (Perovskitas, etc.)'
+
+    return 'Outros Multicomponentes'
+
+
+def main():
+    caminho_dados = '/home/maria_alice/TCC/data/c2db_features_selecionadas.csv'
+    try:
+        df = pd.read_csv(caminho_dados)
+    except FileNotFoundError:
+        print(f"ERRO: Arquivo não encontrado em {caminho_dados}")
+        return
+
+    target = 'hform'
+    features = [col for col in df.columns if col not in [target, 'formula']]
+    y = df[target].dropna()
+
+    # =========================================================================
+    # 1. RESUMO GERAL E ESTATÍSTICAS DO ALVO (hform)
+    # =========================================================================
+    n_amostras = len(df)
+    n_formulas_unicas = df['formula'].nunique()
+    n_features = len(features)
+
+    media = y.mean()
+    desvio = y.std()
+    mediana = y.median()
+    q1, q3 = y.quantile(0.25), y.quantile(0.75)
+    minimo, maximo = y.min(), y.max()
+    assimetria = y.skew()
+    pct_exo = (y < 0).mean() * 100
+    pct_endo = (y >= 0).mean() * 100
+
+    print("\n" + "=" * 68)
+    print(" CARACTERIZAÇÃO DO BANCO DE DADOS (APÓS LIMPEZA E FEATURIZAÇÃO)")
+    print("=" * 68)
+    print(f"Total de amostras (materiais):   {n_amostras}")
+    print(f"Fórmulas químicas únicas:        {n_formulas_unicas}")
+    print(f"Total de descritores (features): {n_features}")
+    print("-" * 68)
+    print(" ESTATÍSTICAS DA ENTALPIA DE FORMAÇÃO (hform) [eV/átomo]")
+    print("-" * 68)
+    print(f"Média:                           {media:.4f}")
+    print(f"Desvio-padrão:                   {desvio:.4f}")
+    print(f"Mediana (Q2):                    {mediana:.4f}")
+    print(f"1º Quartil (Q1 - 25%):           {q1:.4f}")
+    print(f"3º Quartil (Q3 - 75%):           {q3:.4f}")
+    print(f"Mínimo:                          {minimo:.4f}")
+    print(f"Máximo:                          {maximo:.4f}")
+    print(f"Assimetria (Skewness):           {assimetria:.4f}")
+    print(f"Exotérmicos (hform < 0):         {(y < 0).sum()} ({pct_exo:.2f}%)")
+    print(f"Endotérmicos (hform >= 0):       {(y >= 0).sum()} ({pct_endo:.2f}%)")
+
+    # =========================================================================
+    # 2. DISTRIBUIÇÃO POR CLASSES QUÍMICAS E DESBALANCEAMENTO
+    # =========================================================================
+    df['Classe'] = df['formula'].apply(classificar_familia_2d)
+    dist_classes = df['Classe'].value_counts().reset_index()
+    dist_classes.columns = ['Classe', 'Quantidade']
+    dist_classes['Percentual (%)'] = (dist_classes['Quantidade'] / n_amostras) * 100
+
+    razao_desbalanceamento = dist_classes['Quantidade'].max() / dist_classes['Quantidade'].min()
+
+    print("\n" + "-" * 68)
+    print(" DISTRIBUIÇÃO POR CLASSES QUÍMICAS")
+    print("-" * 68)
+    print(dist_classes.to_string(index=False, float_format="%.2f"))
+    print("-" * 68)
+    print(f"Classe majoritária: {dist_classes.iloc[0]['Classe']} ({dist_classes.iloc[0]['Quantidade']} | {dist_classes.iloc[0]['Percentual (%)']:.2f}%)")
+    print(f"Classe minoritária: {dist_classes.iloc[-1]['Classe']} ({dist_classes.iloc[-1]['Quantidade']} | {dist_classes.iloc[-1]['Percentual (%)']:.2f}%)")
+    print(f"Razão de desbalanceamento (máx/mín): {razao_desbalanceamento:.1f}x")
+    print("=" * 68 + "\n")
+
+    # Salva tabela de distribuição em CSV
+    caminho_csv = os.path.join(TAB_DIR, 'distribuicao_classes_c2db.csv')
+    dist_classes.to_csv(caminho_csv, index=False, encoding='utf-8')
+
+    # =========================================================================
+    # 3. PAINEL GRÁFICO (600 DPI — PADRÃO TCC)
+    # =========================================================================
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4))
+
+    # Painel Esquerdo: Histograma + KDE de hform
+    sns.histplot(
+        y, bins=55, kde=True, ax=axes[0],
+        color='#5B86E5', edgecolor='white', alpha=0.75,
+        line_kws={'color': '#1f3b73', 'linewidth': 2.0}
+    )
+    axes[0].axvline(media, color='#d62728', linestyle='--', linewidth=2.0,
+                    label=f'Média = {media:.2f} eV/átomo')
+    axes[0].axvline(mediana, color='#2ca02c', linestyle='-.', linewidth=2.0,
+                    label=f'Mediana = {mediana:.2f} eV/átomo')
+    axes[0].axvline(0, color='#444444', linestyle=':', linewidth=1.6,
+                    label=r'$h_{\mathrm{form}} = 0$')
+
+    axes[0].set_xlabel(r'Entalpia de Formação ($h_{\mathrm{form}}$) (eV/átomo)', fontsize=13.5)
+    axes[0].set_ylabel('Frequência (Quantidade de Materiais)', fontsize=13.5)
+    axes[0].set_title(r'Distribuição do Alvo ($h_{\mathrm{form}}$)', fontsize=15, pad=10)
+    axes[0].tick_params(axis='both', labelsize=12)
+    axes[0].legend(fontsize=11, frameon=True, loc='upper left')
+    axes[0].grid(True, axis='y', linestyle=':', alpha=0.5)
+
+    # Painel Direito: Barras Horizontais das Classes Químicas
+    dist_plot = dist_classes.sort_values(by='Quantidade', ascending=True)
+    barras = axes[1].barh(
+        dist_plot['Classe'], dist_plot['Quantidade'],
+        color='#20b2aa', edgecolor='white', linewidth=0.6, alpha=0.9
+    )
+
+    max_qtd = dist_plot['Quantidade'].max()
+    axes[1].set_xlim(0, max_qtd * 1.28)
+    axes[1].set_xlabel('Quantidade de Materiais', fontsize=13.5)
+    axes[1].set_title('Distribuição por Classe Química', fontsize=15, pad=10)
+    axes[1].tick_params(axis='x', labelsize=12)
+    axes[1].tick_params(axis='y', labelsize=10.5)
+    axes[1].grid(True, axis='x', linestyle=':', alpha=0.5)
+
+    for barra, qtd, pct in zip(barras, dist_plot['Quantidade'], dist_plot['Percentual (%)']):
+        axes[1].text(
+            barra.get_width() + max_qtd * 0.015,
+            barra.get_y() + barra.get_height() / 2,
+            f"{qtd} ({pct:.1f}%)",
+            va='center', fontsize=10, color='#333333'
+        )
+
+    plt.tight_layout(w_pad=2.2)
+    caminho_fig = os.path.join(FIG_DIR, 'caracterizacao_banco_dados.png')
+    plt.savefig(caminho_fig, dpi=DPI, bbox_inches='tight')
+    plt.close()
+
+    print(f"-> Figura salva em: {caminho_fig}")
+    print(f"-> Tabela salva em: {caminho_csv}")
+
+
+if __name__ == "__main__":
+    main()
